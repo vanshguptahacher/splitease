@@ -1,0 +1,2 @@
+-- SplitEase initial schema migration
+-- Database tables and RLS policies will be introduced starting in Phase 2.
