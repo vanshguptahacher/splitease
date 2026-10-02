@@ -61,4 +61,20 @@ SplitEase is an Android expense-splitting application (a fast, intuitive Splitwi
 - `npm run android`: Start on Android
 - `npm run lint`: Run ESLint
 - `npm run typecheck`: Run TypeScript typecheck (`tsc --noEmit`)
-- `npm run test`: Run Jest unit tests (configured in 1.7)
+- `npm run test`: Run Jest unit tests
+- `npm run check`: Run lint, typecheck, and tests together (clean baseline check)
+
+---
+
+## Building Release APK (Smoke Testing)
+To build a release APK locally for Android:
+```bash
+cd android
+./gradlew assembleRelease
+```
+The output APK is generated at:
+`android/app/build/outputs/apk/release/app-release.apk`
+Install on device:
+```bash
+adb install android/app/build/outputs/apk/release/app-release.apk
+```
