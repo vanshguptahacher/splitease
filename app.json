@@ -34,7 +34,13 @@
           "imageWidth": 76
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you set your profile picture."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

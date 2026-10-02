@@ -132,6 +132,19 @@ export function toFriendlyMessage(error: unknown): string {
     return 'Cannot complete action because a related record is missing.';
   }
 
+  if (errCode === '23514' || msg.includes('check constraint')) {
+    if (msg.includes('profiles_name_len')) {
+      return 'Name must be between 1 and 50 characters.';
+    }
+    if (msg.includes('profiles_upi_format')) {
+      return 'Invalid UPI ID format. Example: name@bank';
+    }
+    if (msg.includes('profiles_avatar_path_format')) {
+      return 'Invalid avatar image path.';
+    }
+    return 'Invalid data entered. Please check your inputs.';
+  }
+
   if (errCode === 'P0001' && rawMsg) {
     return rawMsg;
   }

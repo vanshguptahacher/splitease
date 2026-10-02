@@ -79,6 +79,29 @@ describe('toFriendlyMessage', () => {
     );
   });
 
+  it('handles database check constraints (Cases G4, G5)', () => {
+    expect(
+      toFriendlyMessage({
+        code: '23514',
+        message: 'new row for relation "profiles" violates check constraint "profiles_name_len"',
+      })
+    ).toBe('Name must be between 1 and 50 characters.');
+
+    expect(
+      toFriendlyMessage({
+        code: '23514',
+        message: 'new row for relation "profiles" violates check constraint "profiles_upi_format"',
+      })
+    ).toBe('Invalid UPI ID format. Example: name@bank');
+
+    expect(
+      toFriendlyMessage({
+        code: '23514',
+        message: 'new row for relation "profiles" violates check constraint "profiles_avatar_path_format"',
+      })
+    ).toBe('Invalid avatar image path.');
+  });
+
   it('provides a clean fallback for null or empty errors', () => {
     expect(toFriendlyMessage(null)).toBe('An unexpected error occurred. Please try again.');
     expect(toFriendlyMessage(undefined)).toBe('An unexpected error occurred. Please try again.');
