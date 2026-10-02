@@ -74,21 +74,9 @@ These guide every later phase. Each phase's acceptance includes "passes the UX c
 
 ## 4. Sub-phases
 
-### Phase 1 Progress Tracker
-| Sub-phase | Name | Status |
-|:---|:---|:---|
-| **1.1** | Create project and tooling | ✅ Completed |
-| **1.2** | Supabase project and connection | ✅ Completed |
-| **1.3** | Theme and design tokens | ✅ Completed |
-| **1.4** | Base components & Dev showcase | ✅ Completed |
-| **1.5** | Navigation skeleton | ⏳ Up Next |
-| **1.6** | Data, error and offline foundations | ⏳ Pending |
-| **1.7** | Quality tooling and tests | ⏳ Pending |
-| **1.8** | Early release-build smoke test and handoff docs | ⏳ Pending |
-
 ---
 
-### [x] 1.1 — Create project and tooling
+### 1.1 — Create project and tooling
 
 **Goal:** A blank, strict, linted TypeScript Expo app that builds and opens on your phone.
 
@@ -129,7 +117,7 @@ These guide every later phase. Each phase's acceptance includes "passes the UX c
 
 ---
 
-### [x] 1.2 — Supabase project and connection
+### 1.2 — Supabase project and connection
 
 **Goal:** The app can reach Supabase, keys are handled safely, and the migrations workflow exists.
 
@@ -184,7 +172,7 @@ AppState.addEventListener('change', (state) => {
 
 ---
 
-### [x] 1.3 — Theme and design tokens
+### 1.3 — Theme and design tokens
 
 **Goal:** One consistent look: colors, spacing, typography, light and dark mode.
 
@@ -215,7 +203,7 @@ AppState.addEventListener('change', (state) => {
 
 ---
 
-### [x] 1.4 — Base components
+### 1.4 — Base components
 
 **Goal:** A small reusable component kit so later screens are fast to build and consistent.
 
@@ -382,11 +370,11 @@ export function formatMoney(amountMinor: number): string {
 
 ## 6. Phase 1 Definition of Done
 
-- [ ] 1.1 to 1.8 each completed, tested on a real phone, and confirmed (1.1, 1.2, 1.3, 1.4 done)
+- [ ] 1.1 to 1.8 each completed, tested on a real phone, and confirmed
 - [ ] App runs in dev **and** as a release APK
-- [x] Supabase connected; no secrets in git; no `service_role` key anywhere
-- [x] Light and dark themes work; all colors and spacing come from tokens
-- [x] Base components and snackbar (undo-ready) built and shown in the dev showcase
+- [ ] Supabase connected; no secrets in git; no `service_role` key anywhere
+- [ ] Light and dark themes work; all colors and spacing come from tokens
+- [ ] Base components and snackbar (undo-ready) built and shown in the dev showcase
 - [ ] Navigation skeleton and deep link `splitease://group/<id>` work
 - [ ] Offline banner and error boundary tested
 - [ ] `npm run check` is clean

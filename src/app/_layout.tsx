@@ -9,7 +9,7 @@ import {
   navigationDarkTheme,
   navigationLightTheme,
 } from '@/lib/theme';
-import { SnackbarProvider } from '@/components/Snackbar';
+import { SnackbarProvider } from '@/components';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -23,7 +23,16 @@ export default function RootLayout() {
         <SnackbarProvider>
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="group/new" options={{ headerShown: false }} />
+            <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="group/[id]/add-expense"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
             <Stack.Screen name="dev/components" options={{ headerShown: false }} />
           </Stack>
         </SnackbarProvider>
