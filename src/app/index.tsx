@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { env, getEnvIssues } from '@/lib/env';
 import { supabase } from '@/lib/supabase/client';
 import { useAppTheme } from '@/lib/theme';
@@ -279,6 +280,28 @@ export default function HomeScreen() {
                   {status.message}
                 </Text>
               </View>
+            )}
+
+            {__DEV__ && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.button,
+                  {
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderColor: theme.colors.outline,
+                    borderWidth: 1,
+                    borderRadius: theme.radius.card,
+                    marginTop: theme.spacing.lg,
+                    minHeight: 48,
+                  },
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => router.push('/dev/components')}
+              >
+                <Text style={[theme.typography.sectionTitle, { color: theme.colors.text, fontSize: 15 }]}>
+                  Open Component Showcase →
+                </Text>
+              </Pressable>
             )}
           </View>
         </View>

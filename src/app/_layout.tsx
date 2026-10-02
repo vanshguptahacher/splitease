@@ -9,6 +9,7 @@ import {
   navigationDarkTheme,
   navigationLightTheme,
 } from '@/lib/theme';
+import { SnackbarProvider } from '@/components/Snackbar';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -19,10 +20,13 @@ export default function RootLayout() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navTheme}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-        </Stack>
+        <SnackbarProvider>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="dev/components" options={{ headerShown: false }} />
+          </Stack>
+        </SnackbarProvider>
       </ThemeProvider>
     </PaperProvider>
   );
