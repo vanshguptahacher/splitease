@@ -49,6 +49,26 @@ SplitEase is an Android expense-splitting application (a fast, intuitive Splitwi
 
 ---
 
+## Auth Setup (Phase 2)
+### Supabase Configuration
+- **Site URL**: `splitease://`
+- **Redirect URLs**: `splitease://*`
+- **Providers**:
+  - Email (OTP code enabled, 10-minute expiry)
+  - Google (enabled with Google Web OAuth Client ID)
+
+### Google Cloud OAuth Configuration
+- **Application Type 1 (Web Application)**:
+  - Name: `SplitEase Web`
+  - Authorized Redirect URI: `https://<supabase-project-ref>.supabase.co/auth/v1/callback`
+  - Configured in Supabase Google Provider & `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in `.env`
+- **Application Type 2 (Android)**:
+  - Name: `SplitEase Android Debug`
+  - Package Name: `in.splitease.app`
+  - Debug SHA-1 Fingerprint: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+
+---
+
 ## Supabase Notice (Free Tier)
 > ⚠️ **Inactivity & Backup Notice**:
 > - Free-tier Supabase projects **pause after 7 days of inactivity**. If paused, log into your Supabase dashboard and click "Restore project".

@@ -9,12 +9,14 @@ const envSchema = z.object({
   supabaseAnonKey: z
     .string()
     .min(1, 'EXPO_PUBLIC_SUPABASE_ANON_KEY is required in .env'),
+  googleWebClientId: z.string().optional(),
 });
 
 // Statically access process.env so Expo compiler inlines them
 const rawEnv = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
 };
 
 const parsed = envSchema.safeParse(rawEnv);
@@ -36,4 +38,5 @@ export const env = parsed.success
   : {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
+      googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     };

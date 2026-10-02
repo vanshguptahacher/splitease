@@ -59,7 +59,7 @@ export default function GroupsTabScreen() {
             variant="text"
             onPress={() =>
               router.push({
-                pathname: '/group/[id]/index',
+                pathname: '/group/[id]',
                 params: { id: '123' },
               })
             }
