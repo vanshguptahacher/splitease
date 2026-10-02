@@ -8,7 +8,7 @@ import {
   BackHandler,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from 'expo-router';
+import { useNavigation, useFocusEffect, useRouter } from 'expo-router';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TextInput, HelperText } from 'react-native-paper';
@@ -39,6 +39,7 @@ import {
 
 export default function AccountTabScreen() {
   const theme = useAppTheme();
+  const router = useRouter();
   const navigation = useNavigation();
   const { showSnackbar } = useSnackbar();
   const { isOffline } = useNetworkStatus();
@@ -265,6 +266,28 @@ export default function AccountTabScreen() {
     } finally {
       setSigningOut(false);
     }
+  };
+
+  const handleDeleteAccount = () => {
+    if (isDirty) {
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes. Are you sure you want to leave?',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              reset();
+              router.push('/account/delete' as any);
+            },
+          },
+        ]
+      );
+      return;
+    }
+    router.push('/account/delete' as any);
   };
 
   const avatarDisplayUrl = getAvatarDisplayUrl(profile?.avatar_path, profile?.avatar_url);
@@ -495,14 +518,22 @@ export default function AccountTabScreen() {
           </View>
         </View>
 
-        {/* Sign Out Action Row */}
-        <View style={[styles.section, { marginTop: theme.spacing.xl }]}>
+        {/* Actions: Sign Out and Delete Account (Sub-phase 2.7) */}
+        <View style={[styles.section, { marginTop: theme.spacing.xl, gap: 12 }]}>
           <AppButton
             title="Sign Out"
             variant="danger"
             icon="log-out-outline"
             loading={signingOut}
             onPress={handleSignOut}
+            fullWidth
+          />
+
+          <AppButton
+            title="Delete Account"
+            variant="text"
+            icon="trash-outline"
+            onPress={handleDeleteAccount}
             fullWidth
           />
         </View>

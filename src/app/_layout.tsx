@@ -83,6 +83,7 @@ function RootNavigator() {
             headerShown: false,
           }}
         />
+        <Stack.Screen name="account/delete" options={{ headerShown: false }} />
         <Stack.Screen name="dev/components" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
