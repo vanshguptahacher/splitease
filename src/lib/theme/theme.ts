@@ -1,5 +1,5 @@
 import { TextStyle } from 'react-native';
-import { DarkTheme, DefaultTheme } from 'expo-router';
+import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import {
   MD3DarkTheme,
   MD3LightTheme,
