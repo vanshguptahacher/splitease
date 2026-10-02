@@ -67,6 +67,20 @@ SplitEase is an Android expense-splitting application (a fast, intuitive Splitwi
   - Package Name: `in.splitease.app`
   - Debug SHA-1 Fingerprint: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
 
+### SMTP Note for Production
+Supabase free-tier built-in email service is rate-limited (30 emails/hour). For production deployments, configure custom SMTP (e.g. Resend, SendGrid, or AWS SES) in Supabase Project Settings → Auth → SMTP Settings.
+
+### Database Migrations & SQL Tests
+1. **Profiles & Privileges**: `supabase/migrations/20261002144652_profiles.sql`
+2. **Storage Bucket `avatars`**: `supabase/migrations/20261002144700_avatars_storage.sql`
+3. **UPI Quantifier Fix**: `supabase/migrations/20261002225300_fix_upi_regex.sql`
+
+To run database unit tests with pgTAP:
+```bash
+npx supabase test db
+```
+Or run `supabase/tests/database/profiles.test.sql` directly in Supabase Dashboard SQL Editor.
+
 ---
 
 ## Supabase Notice (Free Tier)

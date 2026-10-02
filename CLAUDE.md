@@ -18,6 +18,12 @@ This file outlines the non-negotiable architectural rules, process constraints, 
 10. **No Workers/Cloudflare in v1:** Keep architecture lean. Extra backend services and workers are strictly deferred to v2.
 11. **Do not copy code from previous failed attempts.**
 12. **Summarise and test:** At the end of each sub-phase, summarise changes and provide exact instructions for verifying on a physical phone.
+13. **Phase 2 Auth Rules:**
+    - **No passwords:** SplitEase is completely passwordless (Native Google Sign-In and Email OTP).
+    - **No email in profiles table:** The `public.profiles` table must never store email columns. Email lives in `auth.users` and is read via the active Supabase session.
+    - **Avatar rules:** Storage bucket `avatars` is public with strict write RLS (`<userId>/<uuid>.jpg`). Profile photos must be cropped square and compressed to ~512x512 JPEG (<500 KB). Fallback priority: custom uploaded photo (`avatar_path`) → Google photo (`avatar_url`) → deterministic initials on stable palette.
+    - **Account deletion is RPC-only:** Client must call `delete_my_account()`, which anonymizes the profile row to "Deleted user", sets `deleted_at = now()`, and deletes the `auth.users` record. Client signs out with `{ scope: 'local' }`.
+    - **Never log personal data:** Emails, tokens, and UPI IDs must never appear in production or development logs. All console logging must go through `src/lib/log.ts` which automatically redacts sensitive data.
 
 ---
 
