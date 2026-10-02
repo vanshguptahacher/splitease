@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "splititup",
-    "slug": "splititup",
+    "name": "SplitEase",
+    "slug": "splitease",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "splititup",
+    "scheme": "splitease",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true
     },
     "android": {
+      "package": "com.thor.splitease",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
