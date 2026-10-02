@@ -145,6 +145,89 @@ export function toFriendlyMessage(error: unknown): string {
     return 'Invalid data entered. Please check your inputs.';
   }
 
+  // 9. Phase 3: Groups, Members, Invites, and Roles Error Codes & Statuses
+  const p3Key = (errCode || rawMsg).trim().toLowerCase();
+  const matchesCode = (target: string) => {
+    return (
+      p3Key === target ||
+      msg === target ||
+      msg.startsWith(`${target}:`) ||
+      msg.endsWith(`:${target}`) ||
+      msg.includes(` ${target} `) ||
+      msg.includes(`"${target}"`) ||
+      msg.includes(`'${target}'`)
+    );
+  };
+
+  if (matchesCode('not_authenticated')) {
+    return 'Please sign in again.';
+  }
+  if (matchesCode('not_a_member')) {
+    return "You're no longer in this group.";
+  }
+  if (matchesCode('not_admin')) {
+    return 'Only group admins can do this.';
+  }
+  if (matchesCode('invalid_name')) {
+    return 'Group names need 1 to 50 characters.';
+  }
+  if (matchesCode('group_limit_reached')) {
+    return "You've reached the limit of 50 groups.";
+  }
+  if (matchesCode('group_full')) {
+    return 'This group is full (50 members).';
+  }
+  if (matchesCode('last_admin')) {
+    return 'A group needs at least one admin. Make someone else admin first.';
+  }
+  if (matchesCode('target_not_member')) {
+    return 'That person is no longer in this group.';
+  }
+  if (matchesCode('cannot_remove_self')) {
+    return 'Use Leave group to leave.';
+  }
+  if (matchesCode('cannot_remove_admin')) {
+    return 'Remove their admin role first, then remove them.';
+  }
+  if (matchesCode('member_not_settled')) {
+    return 'They need to settle up first.';
+  }
+  if (matchesCode('group_not_settled')) {
+    return 'Everyone needs to settle up before the group can be deleted.';
+  }
+  if (matchesCode('sole_admin')) {
+    return "You're the only admin of a group that has other members. Make someone admin or delete the group first.";
+  }
+  if (matchesCode('unsettled_balances')) {
+    return 'You have unsettled balances. Delete anyway?';
+  }
+  if (matchesCode('invalid_role')) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  // Join and preview statuses
+  if (matchesCode('already_member')) {
+    return "You're already in this group.";
+  }
+  if (matchesCode('invalid')) {
+    return 'Code not found. Check it and try again.';
+  }
+  if (matchesCode('expired')) {
+    return 'This invite has expired. Ask an admin for a new one.';
+  }
+  if (matchesCode('revoked')) {
+    return 'This invite was reset by an admin. Ask for the new one.';
+  }
+  if (matchesCode('removed')) {
+    return 'An admin removed you from this group. Ask for a new invite.';
+  }
+  if (matchesCode('too_many_groups')) {
+    return "You've reached the limit of 50 groups.";
+  }
+  if (matchesCode('too_many_attempts')) {
+    return 'Too many wrong codes. Try again in about 15 minutes.';
+  }
+
   if (errCode === 'P0001' && rawMsg) {
     return rawMsg;
   }

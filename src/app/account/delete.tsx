@@ -1,18 +1,30 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
-  ScrollView,
-  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { TextInput } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 
-import { AppButton, AppHeader, Screen, useSnackbar } from '@/components';
+import {
+  AppButton,
+  AppHeader,
+  LoadingSkeleton,
+  Screen,
+  useSnackbar,
+} from '@/components';
 import { useAppTheme } from '@/lib/theme';
-import { useAuth, useProfile } from '@/hooks';
+import {
+  useAccountDeletionBlockers,
+  useAuth,
+  useProfile,
+} from '@/hooks';
+import { deleteMyAccount } from '@/lib/api/groups';
 import { supabase } from '@/lib/supabase/client';
 import { toFriendlyMessage } from '@/lib/errors';
 import { signInWithGoogle } from '@/lib/auth/google';
@@ -27,12 +39,32 @@ export default function DeleteAccountScreen() {
   const { user, signOutAndReset } = useAuth();
   const { profile } = useProfile(user?.id);
 
+  // Preflight check on Explain screen (GD5)
+  const {
+    data: blockers,
+    isLoading: isBlockersLoading,
+    refetch: refetchBlockers,
+  } = useAccountDeletionBlockers();
+
   const [step, setStep] = useState<DeleteStep>('explain');
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unsettledConfirmed, setUnsettledConfirmed] = useState(false);
 
   const isGoogleUser = user?.app_metadata?.provider === 'google';
+
+  const soleAdminGroups = blockers?.sole_admin_groups ?? [];
+  const unsettledGroups = blockers?.unsettled_groups ?? [];
+  const hasSoleAdminBlocker = soleAdminGroups.length > 0;
+  const hasUnsettledBlocker = unsettledGroups.length > 0;
+
+  // Refresh blockers whenever the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      refetchBlockers();
+    }, [refetchBlockers])
+  );
 
   // Step 2: Re-authenticate to confirm identity (Case F2)
   const handleVerifyIdentity = async () => {
@@ -50,9 +82,17 @@ export default function DeleteAccountScreen() {
         }
 
         // Verify the re-authenticated user matches current user
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser?.email && user?.email && currentUser.email.toLowerCase() !== user.email.toLowerCase()) {
-          showSnackbar({ message: 'Selected account does not match current account.' });
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+        if (
+          currentUser?.email &&
+          user?.email &&
+          currentUser.email.toLowerCase() !== user.email.toLowerCase()
+        ) {
+          showSnackbar({
+            message: 'Selected account does not match current account.',
+          });
           return;
         }
       }
@@ -64,7 +104,7 @@ export default function DeleteAccountScreen() {
     }
   };
 
-  // Step 4: Execute Account Deletion (Cases F4, F5)
+  // Step 4: Execute Account Deletion (Cases F4, F5, GD2, GD3, GD4, GD6)
   const executeAccountDeletion = async () => {
     setStep('deleting');
     setErrorMessage(null);
@@ -75,11 +115,8 @@ export default function DeleteAccountScreen() {
         await deleteAvatarFile(profile.avatar_path).catch(() => {});
       }
 
-      // 2. Execute delete_my_account RPC
-      const { error: rpcError } = await supabase.rpc('delete_my_account');
-      if (rpcError) {
-        throw rpcError;
-      }
+      // 2. Execute delete_my_account RPC (with force flag if confirmed unsettled balances)
+      await deleteMyAccount(unsettledConfirmed);
 
       // 3. Clean sign out and reset local state
       await signOutAndReset();
@@ -112,7 +149,7 @@ export default function DeleteAccountScreen() {
       />
 
       <ScrollView contentContainerStyle={[styles.content, { padding: theme.spacing.lg }]}>
-        {/* Step 1: Explain Screen (Case F1) */}
+        {/* Step 1: Explain Screen (Case F1, GD1, GD4, GD5) */}
         {step === 'explain' && (
           <View style={styles.stepContainer}>
             <View
@@ -134,6 +171,138 @@ export default function DeleteAccountScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Blockers Preflight Loading */}
+            {isBlockersLoading && (
+              <View style={{ marginTop: theme.spacing.lg }}>
+                <LoadingSkeleton variant="card" count={1} />
+              </View>
+            )}
+
+            {/* Sole Admin Blocker Warning (GD1, F7) */}
+            {hasSoleAdminBlocker && (
+              <View
+                testID="sole-admin-blocker-card"
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.colors.errorContainer,
+                    borderColor: theme.colors.error,
+                    borderRadius: theme.radius.card,
+                    padding: theme.spacing.lg,
+                    marginTop: theme.spacing.lg,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name="shield-outline" size={24} color={theme.colors.error} style={{ marginRight: 8 }} />
+                  <Text style={[theme.typography.sectionTitle, { color: theme.colors.onErrorContainer, flex: 1 }]}>
+                    Cannot Delete: Sole Admin
+                  </Text>
+                </View>
+                <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginBottom: 12 }]}>
+                  You are the only admin of the following groups with active members. A group needs at least one admin. Make someone else admin or delete the group first:
+                </Text>
+
+                {soleAdminGroups.map((g: any) => (
+                  <View
+                    key={g.id}
+                    style={[
+                      styles.groupBlockerRow,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.outline,
+                        borderRadius: theme.radius.sm,
+                        padding: theme.spacing.md,
+                        marginBottom: 8,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          { color: theme.colors.text, fontWeight: '700' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {g.name}
+                      </Text>
+                      <Text style={[theme.typography.caption, { color: theme.colors.muted, marginTop: 2 }]}>
+                        Make someone admin or delete this group
+                      </Text>
+                    </View>
+                    <AppButton
+                      title="Make someone admin"
+                      variant="secondary"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/group/[id]',
+                          params: { id: g.id, tab: 'members' },
+                        } as any)
+                      }
+                      testID={`manage-group-${g.id}`}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Unsettled Balances Blocker (GD4, F8) */}
+            {hasUnsettledBlocker && (
+              <View
+                testID="unsettled-blocker-card"
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.colors.errorContainer,
+                    borderColor: theme.colors.error,
+                    borderRadius: theme.radius.card,
+                    padding: theme.spacing.lg,
+                    marginTop: theme.spacing.lg,
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name="wallet-outline" size={24} color={theme.colors.error} style={{ marginRight: 8 }} />
+                  <Text style={[theme.typography.sectionTitle, { color: theme.colors.onErrorContainer, flex: 1 }]}>
+                    Unsettled Balances
+                  </Text>
+                </View>
+                <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginBottom: 8 }]}>
+                  You have active balances in the following groups:
+                </Text>
+
+                {unsettledGroups.map((g: any) => (
+                  <Text
+                    key={g.id}
+                    style={[
+                      theme.typography.body,
+                      { color: theme.colors.onErrorContainer, fontWeight: '600', marginLeft: 8, marginBottom: 4 },
+                    ]}
+                  >
+                    • {g.name}
+                  </Text>
+                ))}
+
+                <Pressable
+                  onPress={() => setUnsettledConfirmed(!unsettledConfirmed)}
+                  style={styles.checkboxRow}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: unsettledConfirmed }}
+                  testID="unsettled-checkbox"
+                >
+                  <Ionicons
+                    name={unsettledConfirmed ? 'checkbox' : 'square-outline'}
+                    size={22}
+                    color={theme.colors.error}
+                  />
+                  <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginLeft: 8, flex: 1 }]}>
+                    I understand others will see me as Deleted user and my share remains recorded.
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
             <View
               style={[
@@ -172,6 +341,13 @@ export default function DeleteAccountScreen() {
                   ledgers stay balanced.
                 </Text>
               </View>
+
+              <View style={styles.listItem}>
+                <Ionicons name="trash-outline" size={20} color={theme.colors.primary} />
+                <Text style={[theme.typography.body, { color: theme.colors.muted, flex: 1 }]}>
+                  Groups where you are the only member will be permanently deleted with your account.
+                </Text>
+              </View>
             </View>
 
             <View style={[styles.actions, { marginTop: theme.spacing.xl }]}>
@@ -179,7 +355,13 @@ export default function DeleteAccountScreen() {
                 title="Continue to Verify"
                 variant="danger"
                 onPress={() => setStep('verify')}
+                disabled={
+                  isBlockersLoading ||
+                  hasSoleAdminBlocker ||
+                  (hasUnsettledBlocker && !unsettledConfirmed)
+                }
                 fullWidth
+                testID="continue-to-verify-button"
               />
               <View style={{ marginTop: 12 }}>
                 <AppButton
@@ -222,6 +404,7 @@ export default function DeleteAccountScreen() {
                 loading={isVerifying}
                 onPress={handleVerifyIdentity}
                 fullWidth
+                testID="verify-google-button"
               />
             </View>
 
@@ -267,6 +450,7 @@ export default function DeleteAccountScreen() {
                 autoCapitalize="characters"
                 autoCorrect={false}
                 textColor={theme.colors.text}
+                testID="delete-account-input"
               />
 
               <View style={{ marginTop: 24 }}>
@@ -277,6 +461,7 @@ export default function DeleteAccountScreen() {
                   disabled={deleteConfirmationText.trim() !== 'DELETE'}
                   onPress={executeAccountDeletion}
                   fullWidth
+                  testID="confirm-delete-account-button"
                 />
               </View>
             </View>
@@ -385,6 +570,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     marginBottom: 14,
+  },
+  groupBlockerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 4,
   },
   actions: {
     width: '100%',

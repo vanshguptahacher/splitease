@@ -24,6 +24,13 @@ This file outlines the non-negotiable architectural rules, process constraints, 
     - **Avatar rules:** Storage bucket `avatars` is public with strict write RLS (`<userId>/<uuid>.jpg`). Profile photos must be cropped square and compressed to ~512x512 JPEG (<500 KB). Fallback priority: custom uploaded photo (`avatar_path`) → Google photo (`avatar_url`) → deterministic initials on stable palette.
     - **Account deletion is RPC-only:** Client must call `delete_my_account()`, which anonymizes the profile row to "Deleted user", sets `deleted_at = now()`, and deletes the `auth.users` record. Client signs out with `{ scope: 'local' }`.
     - **Never log personal data:** Emails, tokens, and UPI IDs must never appear in production or development logs. All console logging must go through `src/lib/log.ts` which automatically redacts sensitive data.
+14. **Phase 3 Group & Member Rules:**
+    - **Server enforces roles:** Group creator is `admin`. Only admins can rename, delete group, generate/reset invite codes, change roles, or remove members.
+    - **Zero direct table writes:** Never use `.insert()`, `.update()`, or `.delete()` on `groups`, `group_members`, `invites`, or `invite_attempts`. All writes use hardened PostgreSQL RPCs.
+    - **Invite security:** 8-character codes using unambiguous 32-character alphabet (`A-HJ-NP-Z2-9`). Expire after 7 days. Rate limited to 10 failed attempts per 15 minutes per user. Non-admins can NEVER view or query invite codes.
+    - **Privacy (never expose emails):** `profiles` table is strictly "own row only". Co-members are fetched via `get_group_members()`, returning name, avatar, UPI ID (active members only), role, and status. Email is never exposed to other members.
+    - **Settled-balance stubs:** `member_is_settled` and `group_is_settled` are temporary stubs returning `true` until Phase 5 implements real ledger calculations.
+    - **Account deletion integration:** Calls `account_deletion_blockers()` preflight. Sole admin of groups with other members blocks deletion; groups with only the user are deleted; groups with other members mark user as `left` and anonymize profile to "Deleted user".
 
 ---
 

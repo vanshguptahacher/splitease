@@ -74,12 +74,16 @@ Supabase free-tier built-in email service is rate-limited (30 emails/hour). For 
 1. **Profiles & Privileges**: `supabase/migrations/20261002144652_profiles.sql`
 2. **Storage Bucket `avatars`**: `supabase/migrations/20261002144700_avatars_storage.sql`
 3. **UPI Quantifier Fix**: `supabase/migrations/20261002225300_fix_upi_regex.sql`
+4. **Groups & Members Tables**: `supabase/migrations/20261002231500_groups_and_members.sql`
+5. **Group Helper Functions & RLS**: `supabase/migrations/20261002231600_group_helpers.sql`
+6. **Core Group RPCs**: `supabase/migrations/20261002232500_group_core_rpcs.sql`
+7. **Group Invites & Join RPCs**: `supabase/migrations/20261002233500_group_invite_rpcs.sql`
+8. **Member, Role & Deletion RPCs**: `supabase/migrations/20261002234500_group_member_and_role_rpcs.sql`
 
 To run database unit tests with pgTAP:
 ```bash
 npx supabase test db
 ```
-Or run `supabase/tests/database/profiles.test.sql` directly in Supabase Dashboard SQL Editor.
 
 ---
 

@@ -10,9 +10,15 @@ export function normalizeDeepLink(url: string): string | null {
 
   try {
     let cleanUrl = url.trim();
-    // Strip scheme prefix (e.g. splitease://, exp://, etc.)
-    const schemeMatch = cleanUrl.match(/^[a-zA-Z0-9+.-]+:\/\/(.*)$/);
-    const pathAndQuery = schemeMatch ? schemeMatch[1] : cleanUrl;
+    let pathAndQuery = cleanUrl;
+
+    if (/^https?:\/\//i.test(cleanUrl)) {
+      const match = cleanUrl.match(/^https?:\/\/[^\/]+(\/.*)?$/i);
+      pathAndQuery = match && match[1] ? match[1] : '';
+    } else {
+      const schemeMatch = cleanUrl.match(/^[a-zA-Z0-9+.-]+:\/\/(.*)$/);
+      pathAndQuery = schemeMatch ? schemeMatch[1] : cleanUrl;
+    }
 
     const withoutLeadingSlashes = pathAndQuery.replace(/^\/+/, '');
     if (!withoutLeadingSlashes) return null;
@@ -20,7 +26,10 @@ export function normalizeDeepLink(url: string): string | null {
     const [pathPart, queryPart] = withoutLeadingSlashes.split('?');
     if (!pathPart) return null;
 
-    const fullPath = `/${pathPart}`;
+    const cleanPath = pathPart.replace(/\/+$/, '');
+    if (!cleanPath) return null;
+
+    const fullPath = `/${cleanPath}`;
 
     // Do not save auth routes as pending links
     if (

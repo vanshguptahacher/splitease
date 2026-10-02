@@ -17,6 +17,14 @@ describe('pendingLink helpers', () => {
       expect(normalizeDeepLink('splitease://group/123')).toBe('/group/123');
     });
 
+    it('normalizes web URLs (universal links)', () => {
+      expect(normalizeDeepLink('https://splitease.app/join/ABCD-EFGH')).toBe('/join/ABCD-EFGH');
+    });
+
+    it('normalizes links with trailing slash (Case GJ17)', () => {
+      expect(normalizeDeepLink('splitease://join/')).toBe('/join');
+    });
+
     it('preserves query parameters', () => {
       expect(normalizeDeepLink('splitease://join/invite_code?ref=user456')).toBe(
         '/join/invite_code?ref=user456'

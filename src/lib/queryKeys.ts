@@ -14,11 +14,12 @@ export const queryKeys = {
   // Group keys
   groups: {
     all: ['groups'] as const,
-    detail: (groupId: string) => ['groups', groupId] as const,
-    members: (groupId: string) => ['groups', groupId, 'members'] as const,
-    expenses: (groupId: string) => ['groups', groupId, 'expenses'] as const,
-    balances: (groupId: string) => ['groups', groupId, 'balances'] as const,
-    settlements: (groupId: string) => ['groups', groupId, 'settlements'] as const,
+    detail: (groupId: string) => ['group', groupId] as const,
+    members: (groupId: string) => ['group', groupId, 'members'] as const,
+    invite: (groupId: string) => ['group', groupId, 'invite'] as const,
+    expenses: (groupId: string) => ['group', groupId, 'expenses'] as const,
+    balances: (groupId: string) => ['group', groupId, 'balances'] as const,
+    settlements: (groupId: string) => ['group', groupId, 'settlements'] as const,
   },
 
   // Expense keys

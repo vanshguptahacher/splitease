@@ -19,6 +19,7 @@ import {
   SnackbarProvider,
 } from '@/components';
 import { toFriendlyMessage } from '@/lib/errors';
+import { getPendingLink } from '@/lib/auth/pendingLink';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 function RootNavigator() {
@@ -28,20 +29,23 @@ function RootNavigator() {
     profileError,
     isProfileLoading,
     refetchProfile,
-    consumePendingLink,
   } = useAuth();
   const router = useRouter();
+  const navigatedPendingRef = React.useRef<string | null>(null);
 
-  // Restore and open pending deep link after sign-in (Case C5)
+  // Restore and open pending deep link after sign-in (Case C5, GJ3, GJ16)
   useEffect(() => {
     if (status === 'signedIn') {
-      consumePendingLink().then((target) => {
-        if (target) {
+      getPendingLink().then((target) => {
+        if (target && navigatedPendingRef.current !== target) {
+          navigatedPendingRef.current = target;
           router.replace(target as any);
         }
       });
+    } else {
+      navigatedPendingRef.current = null;
     }
-  }, [status, consumePendingLink, router]);
+  }, [status, router]);
 
   // Keep splash screen visible while initial session status is resolving (Case C1)
   if (status === 'loading') {
@@ -76,6 +80,9 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="group/new" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="group/join" options={{ headerShown: false }} />
+        <Stack.Screen name="join/index" options={{ headerShown: false }} />
+        <Stack.Screen name="join/[code]" options={{ headerShown: false }} />
         <Stack.Screen
           name="group/[id]/add-expense"
           options={{

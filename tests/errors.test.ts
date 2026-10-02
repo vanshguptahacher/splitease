@@ -102,6 +102,60 @@ describe('toFriendlyMessage', () => {
     ).toBe('Invalid avatar image path.');
   });
 
+  it('handles Phase 3 group and role RPC error codes (Section 5)', () => {
+    expect(toFriendlyMessage(new Error('not_authenticated'))).toBe('Please sign in again.');
+    expect(toFriendlyMessage({ code: 'P0001', message: 'not_a_member' })).toBe(
+      "You're no longer in this group."
+    );
+    expect(toFriendlyMessage(new Error('not_admin'))).toBe('Only group admins can do this.');
+    expect(toFriendlyMessage(new Error('invalid_name'))).toBe('Group names need 1 to 50 characters.');
+    expect(toFriendlyMessage(new Error('group_limit_reached'))).toBe(
+      "You've reached the limit of 50 groups."
+    );
+    expect(toFriendlyMessage(new Error('group_full'))).toBe('This group is full (50 members).');
+    expect(toFriendlyMessage(new Error('last_admin'))).toBe(
+      'A group needs at least one admin. Make someone else admin first.'
+    );
+    expect(toFriendlyMessage(new Error('target_not_member'))).toBe(
+      'That person is no longer in this group.'
+    );
+    expect(toFriendlyMessage(new Error('cannot_remove_self'))).toBe('Use Leave group to leave.');
+    expect(toFriendlyMessage(new Error('cannot_remove_admin'))).toBe(
+      'Remove their admin role first, then remove them.'
+    );
+    expect(toFriendlyMessage(new Error('member_not_settled'))).toBe('They need to settle up first.');
+    expect(toFriendlyMessage(new Error('group_not_settled'))).toBe(
+      'Everyone needs to settle up before the group can be deleted.'
+    );
+    expect(toFriendlyMessage(new Error('sole_admin'))).toBe(
+      "You're the only admin of a group that has other members. Make someone admin or delete the group first."
+    );
+    expect(toFriendlyMessage(new Error('unsettled_balances'))).toBe(
+      'You have unsettled balances. Delete anyway?'
+    );
+    expect(toFriendlyMessage(new Error('invalid_role'))).toBe(
+      'Something went wrong. Please try again.'
+    );
+  });
+
+  it('handles Phase 3 invite and join flow statuses (Section 5)', () => {
+    expect(toFriendlyMessage('already_member')).toBe("You're already in this group.");
+    expect(toFriendlyMessage('invalid')).toBe('Code not found. Check it and try again.');
+    expect(toFriendlyMessage('expired')).toBe(
+      'This invite has expired. Ask an admin for a new one.'
+    );
+    expect(toFriendlyMessage('revoked')).toBe(
+      'This invite was reset by an admin. Ask for the new one.'
+    );
+    expect(toFriendlyMessage('removed')).toBe(
+      'An admin removed you from this group. Ask for a new invite.'
+    );
+    expect(toFriendlyMessage('too_many_groups')).toBe("You've reached the limit of 50 groups.");
+    expect(toFriendlyMessage('too_many_attempts')).toBe(
+      'Too many wrong codes. Try again in about 15 minutes.'
+    );
+  });
+
   it('provides a clean fallback for null or empty errors', () => {
     expect(toFriendlyMessage(null)).toBe('An unexpected error occurred. Please try again.');
     expect(toFriendlyMessage(undefined)).toBe('An unexpected error occurred. Please try again.');

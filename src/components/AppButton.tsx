@@ -25,6 +25,7 @@ export interface AppButtonProps {
   textStyle?: StyleProp<TextStyle>;
   fullWidth?: boolean;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 export function AppButton({
@@ -39,6 +40,7 @@ export function AppButton({
   textStyle,
   fullWidth = false,
   accessibilityLabel,
+  testID,
 }: AppButtonProps) {
   const theme = useAppTheme();
   const isDisabled = disabled || loading;
@@ -69,6 +71,7 @@ export function AppButton({
 
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"

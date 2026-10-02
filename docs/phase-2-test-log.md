@@ -100,6 +100,9 @@ Commit: `764658e` / `main`
 | F4 | Deletion runs | Storage cleanup → `delete_my_account()` → session cleared → goodbye screen | ✅ PASS | Deletion order implemented and verified in `tests/deleteAccount.test.ts`. |
 | F5 | Network fails mid-way | Safe to retry; nothing half-deleted is left broken | ✅ PASS | Error state displays "Retry Deletion" button; steps are idempotent. |
 | F6 | Same email signs up again | Fresh account with no old data | ✅ PASS | Profile row was anonymized and auth user removed; new sign-up creates a brand new profile. |
+| F7 | User is the only admin of a group that has other members | Deletion blocked: preflight lists groups, action button opens group, continue disabled | ✅ PASS | Preflight blocker card lists groups with "Make someone admin" button (GD1); verified in `tests/deleteAccountUi.test.tsx` and SQL suite. |
+| F8 | User has unsettled balances | Warning listing groups; allowed after explicit confirmation; passes force=true | ✅ PASS | Unsettled card displayed with confirmation checkbox enabling continue (GD4); passes `p_force: true` to `delete_my_account`. |
+| F9 | Other members' view of a deleted user | Name "Deleted user", no photo, no UPI ID; member status marked "left" | ✅ PASS | Profile row anonymized, memberships marked `left` (GD3, GD6); verified in `supabase/tests/database/group_members_and_roles.test.sql`. |
 
 ---
 

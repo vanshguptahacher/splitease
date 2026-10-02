@@ -3,9 +3,11 @@ select plan(7);
 
 -- Test 1: Anonymous cannot read profiles
 set local role anon;
-select is_empty(
+select throws_ok(
   'select * from public.profiles',
-  'anon role cannot select from profiles'
+  '42501',
+  null,
+  'anon role cannot select from profiles (permission denied)'
 );
 
 -- Test 2: RLS blocks selecting other users' profiles
