@@ -8,6 +8,7 @@ export interface AppError {
   code?: string;
   status?: number;
   details?: string;
+  error_description?: string;
 }
 
 export function toFriendlyMessage(error: unknown): string {
@@ -15,70 +16,128 @@ export function toFriendlyMessage(error: unknown): string {
     return 'An unexpected error occurred. Please try again.';
   }
 
-  // Handle standard Error instance
+  // Extract raw message string for pattern inspection
+  let rawMsg = '';
+  let errCode = '';
+  let errStatus: number | undefined;
+
   if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-
-    if (
-      msg.includes('network request failed') ||
-      msg.includes('network error') ||
-      msg.includes('failed to fetch') ||
-      msg.includes('timeout')
-    ) {
-      return 'No internet connection. Please check your network and try again.';
-    }
-
-    if (msg.includes('jwt') || msg.includes('token') || msg.includes('unauthorized')) {
-      return 'Your session has expired. Please sign in again.';
-    }
-
-    if (msg.includes('permission denied') || msg.includes('access denied')) {
-      return 'You do not have permission to perform this action.';
-    }
-
-    return error.message;
-  }
-
-  // Handle Supabase/PostgREST/Postgres error objects
-  if (typeof error === 'object' && error !== null) {
+    rawMsg = error.message;
+  } else if (typeof error === 'object' && error !== null) {
     const err = error as AppError;
-
-    // HTTP Status Codes
-    if (err.status === 401) {
-      return 'Your session has expired. Please sign in again.';
-    }
-    if (err.status === 403) {
-      return 'You do not have permission to view or edit this data.';
-    }
-    if (err.status === 404) {
-      return 'The requested item was not found.';
-    }
-    if (err.status && err.status >= 500) {
-      return 'Server error. Our team is looking into it. Please try again shortly.';
-    }
-
-    // Postgres / PostgREST Error Codes
-    if (err.code === '42501') {
-      return 'You do not have permission to access this data.';
-    }
-    if (err.code === '23505') {
-      return 'This item already exists.';
-    }
-    if (err.code === '23503') {
-      return 'Cannot complete action because a related record is missing.';
-    }
-    if (err.code === 'P0001' && err.message) {
-      // Postgres RAISE EXCEPTION message
-      return err.message;
-    }
-
-    if (typeof err.message === 'string' && err.message.length > 0) {
-      return err.message;
-    }
+    rawMsg = err.message || err.error_description || '';
+    errCode = err.code || '';
+    errStatus = err.status;
+  } else if (typeof error === 'string') {
+    rawMsg = error;
   }
 
-  if (typeof error === 'string') {
-    return error;
+  const msg = rawMsg.toLowerCase();
+  const code = errCode.toLowerCase();
+
+  // 1. Network & Timeout
+  if (
+    msg.includes('network request failed') ||
+    msg.includes('network error') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('timeout') ||
+    msg.includes('abort')
+  ) {
+    return 'No internet connection. Please check your network and try again.';
+  }
+
+  // 2. Auth: Clock Skew / Device Date-Time
+  if (
+    code.includes('future') ||
+    code.includes('clock') ||
+    msg.includes('issued in the future') ||
+    msg.includes('clock skew') ||
+    msg.includes('nbf')
+  ) {
+    return "Check your phone's date and time.";
+  }
+
+  // 3. Auth: Rate limits (HTTP 429, over_email_send_rate_limit)
+  if (
+    errStatus === 429 ||
+    code.includes('rate_limit') ||
+    msg.includes('rate limit') ||
+    msg.includes('too many requests') ||
+    msg.includes('over_email_send_rate_limit')
+  ) {
+    return 'Too many attempts. Please wait a few minutes before trying again.';
+  }
+
+  // 4. Auth: Expired OTP code
+  if (
+    code === 'otp_expired' ||
+    msg.includes('otp expired') ||
+    msg.includes('token has expired') ||
+    msg.includes('token is expired')
+  ) {
+    return 'That code has expired. Please request a new one.';
+  }
+
+  // 5. Auth: Invalid OTP code or grant
+  if (
+    code === 'invalid_grant' ||
+    code === 'otp_disabled' ||
+    msg.includes('token has invalid format') ||
+    msg.includes('invalid token') ||
+    msg.includes('token not found') ||
+    msg.includes('wrong code') ||
+    msg.includes('invalid otp')
+  ) {
+    return 'That code is invalid. Please check and try again.';
+  }
+
+  // 6. Auth: Session expired / Revoked token / Unauthorized
+  if (
+    errStatus === 401 ||
+    code === 'refresh_token_not_found' ||
+    code === 'token_revoked' ||
+    msg.includes('refresh_token_not_found') ||
+    msg.includes('token_revoked') ||
+    msg.includes('jwt') ||
+    msg.includes('unauthorized') ||
+    msg.includes('session has expired') ||
+    msg.includes('session_not_found')
+  ) {
+    return 'Please sign in again.';
+  }
+
+  // 7. Google Play Services
+  if (msg.includes('play services') && (msg.includes('outdated') || msg.includes('missing') || msg.includes('unavailable'))) {
+    return 'Google Play Services is not available. Please update it or sign in with email.';
+  }
+
+  // 8. Postgres / PostgREST permissions
+  if (errStatus === 403 || errCode === '42501' || msg.includes('permission denied') || msg.includes('access denied')) {
+    return 'You do not have permission to perform this action.';
+  }
+
+  if (errStatus === 404) {
+    return 'The requested item was not found.';
+  }
+
+  if (errStatus && errStatus >= 500) {
+    return 'Server error. Our team is looking into it. Please try again shortly.';
+  }
+
+  if (errCode === '23505') {
+    return 'This item already exists.';
+  }
+
+  if (errCode === '23503') {
+    return 'Cannot complete action because a related record is missing.';
+  }
+
+  if (errCode === 'P0001' && rawMsg) {
+    return rawMsg;
+  }
+
+  if (rawMsg.length > 0) {
+    return rawMsg;
   }
 
   return 'Something went wrong. Please try again.';
