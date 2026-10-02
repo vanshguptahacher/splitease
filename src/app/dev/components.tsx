@@ -18,10 +18,15 @@ export default function ComponentShowcaseScreen() {
   const { showSnackbar } = useSnackbar();
   const [btnLoading, setBtnLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [shouldCrash, setShouldCrash] = useState(false);
 
   // Dev-only screen safety check
   if (!__DEV__) {
     return null;
+  }
+
+  if (shouldCrash) {
+    throw new Error('Deliberate test error: ErrorBoundary successfully caught component render crash!');
   }
 
   const handleTestLoading = () => {
@@ -211,6 +216,26 @@ export default function ComponentShowcaseScreen() {
                 setRetryCount((prev) => prev + 1);
                 showSnackbar({ message: 'Retrying request...' });
               }}
+            />
+          </View>
+        </View>
+
+        {/* Section 7: Error Boundary Deliberate Crash Test */}
+        <View style={styles.section}>
+          <Text style={[theme.typography.sectionTitle, { color: theme.colors.text }]}>
+            7. ErrorBoundary Deliberate Crash Test
+          </Text>
+          <Text style={[theme.typography.caption, { color: theme.colors.muted, marginBottom: theme.spacing.md }]}>
+            {'Throws a deliberate runtime error to verify ErrorBoundary recovers gracefully with "Try Again".'}
+          </Text>
+
+          <View style={styles.buttonStack}>
+            <AppButton
+              title="Throw Test Error (Test ErrorBoundary)"
+              variant="danger"
+              icon="bug-outline"
+              onPress={() => setShouldCrash(true)}
+              fullWidth
             />
           </View>
         </View>

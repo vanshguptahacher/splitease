@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { log } from './log';
 
 const envSchema = z.object({
   supabaseUrl: z
@@ -27,7 +28,7 @@ export function getEnvIssues(): string | null {
 
 if (!parsed.success) {
   const issues = parsed.error.issues.map((i) => i.message).join('\n');
-  console.error('[SplitEase Config Error] Invalid environment variables:\n' + issues);
+  log.error('[SplitEase Config Error] Invalid environment variables:\n' + issues);
 }
 
 export const env = parsed.success
