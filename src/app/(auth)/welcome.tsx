@@ -1,12 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
-import { AppButton, Screen } from '@/components';
+import { AppButton, Screen, useSnackbar } from '@/components';
 import { useAuth } from '@/hooks';
+import { signInWithGoogle } from '@/lib/auth/google';
+import { toFriendlyMessage } from '@/lib/errors';
 
 export default function WelcomeScreen() {
   const theme = useTheme();
   const { status } = useAuth();
+  const { showSnackbar } = useSnackbar();
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    if (googleLoading) return; // Prevent double tap (Case A7)
+
+    setGoogleLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if ('error' in result && result.error) {
+        showSnackbar({ message: result.error });
+      }
+      // If result.cancelled is true, do nothing silently (Case A3)
+    } catch (err: unknown) {
+      showSnackbar({ message: toFriendlyMessage(err) });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <Screen style={styles.container}>
@@ -30,24 +51,36 @@ export default function WelcomeScreen() {
           <AppButton
             title="Continue with Google"
             variant="primary"
-            onPress={() => {}}
+            icon="logo-google"
+            loading={googleLoading}
+            disabled={googleLoading}
+            onPress={handleGoogleSignIn}
+            accessibilityLabel="Sign in with Google"
             fullWidth
           />
 
           <AppButton
             title="Continue with Email"
             variant="secondary"
-            onPress={() => {}}
+            icon="mail-outline"
+            disabled={googleLoading}
+            onPress={() => {
+              // Handled in Sub-phase 2.5
+              showSnackbar({ message: 'Email login coming in Sub-phase 2.5' });
+            }}
+            accessibilityLabel="Sign in with Email"
             fullWidth
           />
         </View>
 
-        <Text
-          variant="labelSmall"
-          style={[styles.statusText, { color: theme.colors.outline }]}
-        >
-          Auth Status: {status}
-        </Text>
+        {__DEV__ && (
+          <Text
+            variant="labelSmall"
+            style={[styles.statusText, { color: theme.colors.outline }]}
+          >
+            Auth Status: {status}
+          </Text>
+        )}
       </View>
     </Screen>
   );

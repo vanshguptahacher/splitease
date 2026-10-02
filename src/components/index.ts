@@ -8,3 +8,4 @@ export * from './ErrorState';
 export * from './Snackbar';
 export * from './OfflineBanner';
 export * from './ErrorBoundary';
+export * from './Avatar';

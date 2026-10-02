@@ -1,16 +1,37 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { AppButton, AppHeader, Screen, useSnackbar } from '@/components';
+import {
+  AppButton,
+  AppHeader,
+  Avatar,
+  Screen,
+  useSnackbar,
+} from '@/components';
 import { env, getEnvIssues } from '@/lib/env';
 import { supabase } from '@/lib/supabase/client';
 import { useAppTheme } from '@/lib/theme';
+import { useAuth } from '@/hooks';
 
 export default function AccountTabScreen() {
   const theme = useAppTheme();
   const { showSnackbar } = useSnackbar();
+  const { user, profile, signOutAndReset } = useAuth();
   const [testing, setTesting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const envIssues = getEnvIssues();
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOutAndReset();
+      showSnackbar({ message: 'Signed out successfully' });
+    } catch {
+      showSnackbar({ message: 'Error signing out' });
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   const handleTestConnection = async () => {
     if (envIssues) {
@@ -48,10 +69,10 @@ export default function AccountTabScreen() {
 
   return (
     <Screen scrollable padding={false}>
-      <AppHeader title="Account" subtitle="User settings & developer tools" />
+      <AppHeader title="Account" subtitle="Profile & Settings" />
 
       <View style={[styles.content, { padding: theme.spacing.lg }]}>
-        {/* Phase Indicator */}
+        {/* User Profile Card */}
         <View
           style={[
             styles.card,
@@ -63,40 +84,66 @@ export default function AccountTabScreen() {
             },
           ]}
         >
-          <View
-            style={[
-              styles.phaseBadge,
-              {
-                backgroundColor: theme.colors.primaryContainer,
-                borderRadius: theme.radius.pill,
-                paddingHorizontal: theme.spacing.md,
-                paddingVertical: theme.spacing.xs,
-                marginBottom: theme.spacing.md,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.onPrimaryContainer, fontWeight: '700' },
-              ]}
-            >
-              🚧 Auth & Profiles coming in Phase 2
-            </Text>
+          <View style={styles.profileHeader}>
+            <Avatar
+              url={profile?.avatar_url}
+              name={profile?.name || user?.email || 'User'}
+              size={64}
+            />
+            <View style={styles.profileInfo}>
+              <Text
+                style={[
+                  theme.typography.sectionTitle,
+                  { color: theme.colors.text },
+                ]}
+              >
+                {profile?.name || 'User'}
+              </Text>
+              {user?.email && (
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.muted, marginTop: 2 },
+                  ]}
+                >
+                  {user.email}
+                </Text>
+              )}
+              {profile?.upi_id ? (
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.primary, marginTop: 4 },
+                  ]}
+                >
+                  UPI: {profile.upi_id}
+                </Text>
+              ) : null}
+            </View>
           </View>
+        </View>
 
-          <Text style={[theme.typography.sectionTitle, { color: theme.colors.text }]}>
-            Guest User
-          </Text>
-          <Text style={[theme.typography.body, { color: theme.colors.muted, marginTop: 4 }]}>
-            Google Sign-In, Email login, UPI ID management, and profile editing will be implemented in Phase 2.
-          </Text>
+        {/* Account Actions */}
+        <View style={[styles.section, { marginTop: theme.spacing.xl }]}>
+          <AppButton
+            title="Sign Out"
+            variant="danger"
+            icon="log-out-outline"
+            loading={signingOut}
+            onPress={handleSignOut}
+            fullWidth
+          />
         </View>
 
         {/* Developer Diagnostics Section */}
         {__DEV__ && (
-          <View style={[styles.devSection, { marginTop: theme.spacing.xl }]}>
-            <Text style={[theme.typography.sectionTitle, { color: theme.colors.text, marginBottom: theme.spacing.md }]}>
+          <View style={[styles.section, { marginTop: theme.spacing.xl }]}>
+            <Text
+              style={[
+                theme.typography.sectionTitle,
+                { color: theme.colors.text, marginBottom: theme.spacing.md },
+              ]}
+            >
               Developer Tools
             </Text>
 
@@ -131,13 +178,17 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    alignItems: 'flex-start',
     width: '100%',
   },
-  phaseBadge: {
-    alignSelf: 'flex-start',
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
-  devSection: {
+  profileInfo: {
+    flex: 1,
+  },
+  section: {
     width: '100%',
   },
   buttonStack: {
