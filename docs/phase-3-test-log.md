@@ -115,12 +115,12 @@ Backend: Supabase PostgreSQL (Local + Remote synced)
 | ID | Scenario | Expected Behavior | Status | Verification Notes |
 |----|----------|-------------------|--------|---------------------|
 | GM1 | Admin removes settled member | Member removed (`status = 'left'`) | ✅ PASS | Access lost immediately. Verified in `groupDetailUi.test.tsx`. |
-| GM2 | Remove member with unsettled balance | Server raises `member_not_settled` | ✅ PASS | Verified with stub toggle in test suite. |
+| GM2 | Remove member with unsettled balance | Server raises `member_not_settled` | ✅ PASS | Re-verified in Phase 5.4 with real balance and pending settlement data (`settlement_integrations.test.sql`). |
 | GM3 | Admin removes self via remove RPC | Server raises `cannot_remove_self` | ✅ PASS | Self-removal must use `leave_group`. |
 | GM4 | Admin removes other admin | Server raises `cannot_remove_admin` | ✅ PASS | Demote first requirement enforced. |
 | GM5 | Member removes someone | Server raises `not_admin` | ✅ PASS | Guarded by `is_group_admin()`. |
 | GM6 | Settled member leaves group | Group removed from user's list | ✅ PASS | Status set to `left`, `left_at = now()`. |
-| GM7 | Member with unsettled balance leaves | Server raises `member_not_settled` | ✅ PASS | Guarded by `member_is_settled()`. |
+| GM7 | Member with unsettled balance leaves | Server raises `member_not_settled` | ✅ PASS | Re-verified in Phase 5.4 with real net balances (+1/-1 paisa) and pending payments (`settlement_integrations.test.sql`). |
 | GM8 | Last admin leaves with others present | Server raises `last_admin`; app offers shortcut | ✅ PASS | "Make someone admin first" shortcut displayed in UI. |
 | GM9 | Only member leaves | Group deleted automatically | ✅ PASS | Group deleted via cascade; confirmed in UI dialog text. |
 | GM10 | Non-last admin leaves | Allowed | ✅ PASS | Admin leaves successfully while other admins remain. |
@@ -140,7 +140,7 @@ Backend: Supabase PostgreSQL (Local + Remote synced)
 | GE2 | Member tries to rename | Server raises `not_admin`; option hidden in UI | ✅ PASS | Rename menu item hidden for non-admins; server enforces admin check. |
 | GE3 | Invalid name during rename | Blocked (1 to 50 characters, trimmed) | ✅ PASS | Validated in UI modal and server constraint. |
 | GE4 | Admin deletes group | Must type `DELETE`; warning shown | ✅ PASS | Danger modal requires typing `DELETE`. |
-| GE5 | Delete with unsettled balances | Server raises `group_not_settled` | ✅ PASS | Guarded by `group_is_settled()`. |
+| GE5 | Delete with unsettled balances | Server raises `group_not_settled` | ✅ PASS | Re-verified in Phase 5.4 with real unsettled group nets and pending payments (`settlement_integrations.test.sql`). |
 | GE6 | Member tries to delete | Server raises `not_admin` | ✅ PASS | Server enforces admin check. |
 | GE7 | Group deleted while viewing | Friendly message; returns to list | ✅ PASS | Error state displays "This group no longer exists". |
 | GE8 | Deletion is permanent | Dialog clearly notes no undo | ✅ PASS | Verified in UI modal copy. |
@@ -173,7 +173,7 @@ Backend: Supabase PostgreSQL (Local + Remote synced)
 | GD1 | Sole admin tries to delete account | Preflight lists groups; deletion blocked | ✅ PASS | Blocker card lists groups with "Make someone admin" button; verified in `deleteAccountUi.test.tsx`. |
 | GD2 | User is only active member | Group deleted automatically with account | ✅ PASS | Verified in SQL test suite and confirmed live. |
 | GD3 | Groups with other members | User membership marked `left` | ✅ PASS | Membership updated to `status = 'left'`, `role = 'member'`. |
-| GD4 | Unsettled balances | Unsettled balances strictly block deletion (`unsettled_balances`) | ✅ PASS | Blocked card displayed with "Settle up with your groups first, then you can delete your account." and disabled delete button; verified in `deleteAccountUi.test.tsx` and SQL suite. |
+| GD4 | Unsettled balances | Unsettled balances strictly block deletion (`unsettled_balances`) | ✅ PASS | Re-verified in Phase 5.4 with real nets and pending payments; verified in `deleteAccountUi.test.tsx` and `settlement_integrations.test.sql`. |
 | GD5 | Preflight timing | Runs before irreversible actions | ✅ PASS | `useAccountDeletionBlockers` runs on Explain screen before any delete step. |
 | GD6 | Deleted user appearance | Displayed as "Deleted user", no photo, no UPI | ✅ PASS | Profile row anonymized, avatar/UPI cleared. |
 

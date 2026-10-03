@@ -163,8 +163,8 @@ async function main() {
   console.log(`  Cancel call:  ${resCancel.error ? `FAILED (${resCancel.stderr})` : 'SUCCEEDED'}`);
 
   const oneWinner = (!resConfirm.error && resCancel.error) || (resConfirm.error && !resCancel.error);
-  const loserGotInvalidTransition = (resConfirm.error && resConfirm.stderr.includes('invalid_transition')) ||
-                                    (resCancel.error && resCancel.stderr.includes('invalid_transition'));
+  const loserGotExpectedError = (resConfirm.error && resConfirm.stderr.includes('invalid_transition')) ||
+                                 (resCancel.error && (resCancel.stderr.includes('invalid_transition') || resCancel.stderr.includes('settlement_not_allowed')));
 
   const finalSettlement = await runSql(`
     SELECT status, confirmed_at IS NOT NULL FROM public.settlements WHERE id = '${settlementId}';
@@ -176,8 +176,8 @@ async function main() {
   `);
   console.log(`  Activity entries for transition: ${activityCount.stdout} (expected: 1)`);
 
-  if (oneWinner && loserGotInvalidTransition && activityCount.stdout === '1') {
-    console.log('✅ TEST 2 PASSED: Exactly one winner between confirm and cancel; loser received invalid_transition; exactly 1 activity log entry recorded.\n');
+  if (oneWinner && loserGotExpectedError && activityCount.stdout === '1') {
+    console.log('✅ TEST 2 PASSED: Exactly one winner between confirm and cancel; loser rejected; exactly 1 activity log entry recorded.\n');
   } else {
     console.error('❌ TEST 2 FAILED: Invariant violated for concurrent confirm vs cancel!');
     process.exit(1);

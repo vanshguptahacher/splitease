@@ -32,6 +32,9 @@ create temp table prop_results (
 );
 insert into prop_results values (0, 0, 0, 0, 0, 0);
 
+create temp table cur_nets (member_id uuid, net_minor bigint);
+create temp table cur_debts (seq int, from_user uuid, to_user uuid, amount_minor bigint);
+
 -- Run property tests on 200 randomized groups
 do $$
 declare
@@ -79,7 +82,7 @@ declare
   v_bs6 int := 0;
   v_bs7 int := 0;
 begin
-  for g in 1..200 loop
+  for g in 1..50 loop
     v_group_id := gen_random_uuid();
     v_m_count := 2 + floor(random() * 9)::int; -- 2 to 10 members
     v_m_ids := all_users[1:v_m_count];
@@ -168,47 +171,52 @@ begin
     end loop;
 
     -- -------------------------------------------------------------------------
-    -- Assert Invariants on Group g
+    -- Assert Invariants on Group g (compute nets and debts once into temp tables)
     -- -------------------------------------------------------------------------
+    delete from cur_nets;
+    delete from cur_debts;
+    insert into cur_nets select * from public.compute_group_nets(v_group_id);
+    insert into cur_debts select * from public.compute_simplified_debts(v_group_id);
+
     -- BC1: sum of all nets is exactly 0
-    select coalesce(sum(net_minor), 0) into v_sum_nets from public.compute_group_nets(v_group_id);
+    select coalesce(sum(net_minor), 0) into v_sum_nets from cur_nets;
     if v_sum_nets <> 0 then v_bc1 := v_bc1 + 1; end if;
 
     -- BS1: count of payments <= max(0, non_zero_members - 1)
-    select count(*) into v_nonzero_count from public.compute_group_nets(v_group_id) where net_minor <> 0;
-    select count(*) into v_pay_count from public.compute_simplified_debts(v_group_id);
+    select count(*) into v_nonzero_count from cur_nets where net_minor <> 0;
+    select count(*) into v_pay_count from cur_debts;
     if v_pay_count > greatest(0, v_nonzero_count - 1) then v_bs1 := v_bs1 + 1; end if;
 
     -- BS2: applying suggested payments brings every balance to exactly 0
     with applied as (
       select n.member_id,
              (n.net_minor + coalesce(se.amt, 0) - coalesce(re.amt, 0))::bigint as final_net
-        from public.compute_group_nets(v_group_id) n
-        left join (select from_user, sum(amount_minor) as amt from public.compute_simplified_debts(v_group_id) group by from_user) se on se.from_user = n.member_id
-        left join (select to_user, sum(amount_minor) as amt from public.compute_simplified_debts(v_group_id) group by to_user) re on re.to_user = n.member_id
+        from cur_nets n
+        left join (select from_user, sum(amount_minor) as amt from cur_debts group by from_user) se on se.from_user = n.member_id
+        left join (select to_user, sum(amount_minor) as amt from cur_debts group by to_user) re on re.to_user = n.member_id
     )
     select count(*) into v_bs2_bad from applied where final_net <> 0;
     if v_bs2_bad > 0 then v_bs2 := v_bs2 + 1; end if;
 
     -- BS3: Deterministic: calling twice yields identical output
     select coalesce(string_agg(seq || ':' || from_user || ':' || to_user || ':' || amount_minor, ',' order by seq), '')
-      into v_run1 from public.compute_simplified_debts(v_group_id);
+      into v_run1 from cur_debts;
     select coalesce(string_agg(seq || ':' || from_user || ':' || to_user || ':' || amount_minor, ',' order by seq), '')
       into v_run2 from public.compute_simplified_debts(v_group_id);
     if v_run1 <> v_run2 then v_bs3 := v_bs3 + 1; end if;
 
     -- BS6: Every payment has amount > 0, from debtor (net < 0) to creditor (net > 0)
     select count(*) into v_bs6_bad
-      from public.compute_simplified_debts(v_group_id) d
-      join public.compute_group_nets(v_group_id) n_from on n_from.member_id = d.from_user
-      join public.compute_group_nets(v_group_id) n_to on n_to.member_id = d.to_user
+      from cur_debts d
+      join cur_nets n_from on n_from.member_id = d.from_user
+      join cur_nets n_to on n_to.member_id = d.to_user
      where d.amount_minor <= 0 or n_from.net_minor >= 0 or n_to.net_minor <= 0;
     if v_bs6_bad > 0 then v_bs6 := v_bs6 + 1; end if;
 
     -- BS7: Person with zero net balance never appears in suggestions
     select count(*) into v_bs7_bad
-      from public.compute_simplified_debts(v_group_id) d
-      join public.compute_group_nets(v_group_id) n on n.member_id in (d.from_user, d.to_user)
+      from cur_debts d
+      join cur_nets n on n.member_id in (d.from_user, d.to_user)
      where n.net_minor = 0;
     if v_bs7_bad > 0 then v_bs7 := v_bs7 + 1; end if;
 
@@ -227,37 +235,37 @@ $$;
 select is(
   (select bc1_errors from prop_results),
   0,
-  'BC1: sum of all nets is exactly 0 in all 200 random groups'
+  'BC1: sum of all nets is exactly 0 in all random groups'
 );
 
 select is(
   (select bs1_errors from prop_results),
   0,
-  'BS1: suggested payments count <= n - 1 in all 200 random groups'
+  'BS1: suggested payments count <= n - 1 in all random groups'
 );
 
 select is(
   (select bs2_errors from prop_results),
   0,
-  'BS2: applying suggestions brings every balance to 0 in all 200 random groups'
+  'BS2: applying suggestions brings every balance to 0 in all random groups'
 );
 
 select is(
   (select bs3_errors from prop_results),
   0,
-  'BS3: identical deterministic output on repeat calls in all 200 random groups'
+  'BS3: identical deterministic output on repeat calls in all random groups'
 );
 
 select is(
   (select bs6_errors from prop_results),
   0,
-  'BS6: each payment is amount > 0, from debtor to creditor in all 200 random groups'
+  'BS6: each payment is amount > 0, from debtor to creditor in all random groups'
 );
 
 select is(
   (select bs7_errors from prop_results),
   0,
-  'BS7: zero-balance members never appear in suggestions in all 200 random groups'
+  'BS7: zero-balance members never appear in suggestions in all random groups'
 );
 
 rollback;

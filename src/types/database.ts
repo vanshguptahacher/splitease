@@ -509,6 +509,8 @@ export interface Database {
           member_count: number;
           joined_at: string;
           last_activity_at: string;
+          my_balance_minor: number;
+          my_pending_actions: number;
         }[];
       };
       get_group: {
@@ -625,6 +627,8 @@ export interface Database {
           unsettled_groups: {
             id: string;
             name: string;
+            my_net_minor: number;
+            pending_count: number;
           }[];
         };
       };
