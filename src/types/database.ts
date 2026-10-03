@@ -363,6 +363,92 @@ export interface Database {
           },
         ];
       };
+      settlements: {
+        Row: {
+          id: string;
+          group_id: string;
+          from_user: string;
+          to_user: string;
+          amount_minor: number;
+          currency: string;
+          method: SettlementMethod;
+          note: string | null;
+          upi_txn_ref: string | null;
+          status: SettlementStatus;
+          created_by: string;
+          client_request_id: string | null;
+          created_at: string;
+          updated_at: string;
+          status_changed_at: string;
+          confirmed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          from_user: string;
+          to_user: string;
+          amount_minor: number;
+          currency?: string;
+          method: SettlementMethod;
+          note?: string | null;
+          upi_txn_ref?: string | null;
+          status?: SettlementStatus;
+          created_by: string;
+          client_request_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          status_changed_at?: string;
+          confirmed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          from_user?: string;
+          to_user?: string;
+          amount_minor?: number;
+          currency?: string;
+          method?: SettlementMethod;
+          note?: string | null;
+          upi_txn_ref?: string | null;
+          status?: SettlementStatus;
+          created_by?: string;
+          client_request_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          status_changed_at?: string;
+          confirmed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'settlements_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'settlements_from_user_fkey';
+            columns: ['from_user'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'settlements_to_user_fkey';
+            columns: ['to_user'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'settlements_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -648,6 +734,92 @@ export interface Database {
           next_cursor: Json;
         }[];
       };
+      get_group_balances: {
+        Args: {
+          p_group: string;
+        };
+        Returns: {
+          members: {
+            user_id: string;
+            net_minor: number;
+          }[];
+          payments: {
+            seq: number;
+            from_user: string;
+            to_user: string;
+            amount_minor: number;
+          }[];
+          my_net_minor: number;
+          pending_for_me: number;
+        };
+      };
+      get_my_balance_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          owed_to_me_minor: number;
+          i_owe_minor: number;
+          net_minor: number;
+          groups_with_dues: number;
+          pending_for_me: number;
+        };
+      };
+      create_settlement: {
+        Args: {
+          p_group: string;
+          p_client_request_id?: string | null;
+          p_from_user: string;
+          p_to_user: string;
+          p_amount_minor: number;
+          p_method: string;
+          p_note?: string | null;
+        };
+        Returns: string;
+      };
+      confirm_settlement: {
+        Args: {
+          p_settlement: string;
+        };
+        Returns: void;
+      };
+      dispute_settlement: {
+        Args: {
+          p_settlement: string;
+        };
+        Returns: void;
+      };
+      cancel_settlement: {
+        Args: {
+          p_settlement: string;
+        };
+        Returns: void;
+      };
+      list_settlements: {
+        Args: {
+          p_group: string;
+          p_limit?: number;
+          p_cursor?: Json | null;
+        };
+        Returns: {
+          id: string;
+          group_id: string;
+          from_user: string;
+          to_user: string;
+          amount_minor: number;
+          currency: string;
+          method: string;
+          note: string | null;
+          status: string;
+          created_by: string;
+          created_at: string;
+          status_changed_at: string;
+          confirmed_at: string | null;
+          can_confirm: boolean;
+          can_dispute: boolean;
+          can_cancel: boolean;
+          can_undo: boolean;
+          next_cursor: Json;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -696,6 +868,18 @@ export type ActivityAction =
   | 'expense_added'
   | 'expense_edited'
   | 'expense_deleted'
-  | 'expense_restored';
+  | 'expense_restored'
+  | 'settlement_created'
+  | 'settlement_confirmed'
+  | 'settlement_disputed'
+  | 'settlement_cancelled';
+
+export type Settlement = Database['public']['Tables']['settlements']['Row'];
+export type SettlementMethod = 'cash' | 'other' | 'upi';
+export type SettlementStatus = 'pending' | 'confirmed' | 'disputed' | 'cancelled';
+
+export type GroupBalancesResult = Database['public']['Functions']['get_group_balances']['Returns'];
+export type BalanceSummaryResult = Database['public']['Functions']['get_my_balance_summary']['Returns'];
+export type SettlementListItem = Database['public']['Functions']['list_settlements']['Returns'][number];
 
 
