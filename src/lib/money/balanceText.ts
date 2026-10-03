@@ -314,3 +314,388 @@ export function formatSettlementStatus(status: SettlementStatus | string): {
       };
   }
 }
+
+export interface SettleComparisonParams {
+  direction: 'payer' | 'receiver';
+  counterpartName: string;
+  enteredMinor: number;
+  expectedMinor: number;
+}
+
+/**
+ * Returns live preview wording under amount in Settle Up sheet (Cases SC10, SC11, SC12).
+ * Compares entered amount against expected debt/due without calculating balances.
+ */
+export function formatSettleComparisonText({
+  direction,
+  counterpartName,
+  enteredMinor,
+  expectedMinor,
+}: SettleComparisonParams): string {
+  if (enteredMinor <= 0) {
+    return 'Enter an amount to settle.';
+  }
+
+  const diff = enteredMinor - expectedMinor;
+
+  if (direction === 'payer') {
+    if (diff === 0) {
+      return `You'll be settled with ${counterpartName} once they confirm.`;
+    }
+    if (diff < 0) {
+      const remainingMinor = Math.abs(diff);
+      return `You'll still owe ${counterpartName} ${formatMoneyCompact(remainingMinor)}.`;
+    }
+    const extraMinor = diff;
+    return `That's ${formatMoneyCompact(extraMinor)} more than you owe. ${counterpartName} will owe you ${formatMoneyCompact(extraMinor)} back.`;
+  } else {
+    if (diff === 0) {
+      return `You'll be settled with ${counterpartName}.`;
+    }
+    if (diff < 0) {
+      const remainingMinor = Math.abs(diff);
+      return `${counterpartName} will still owe you ${formatMoneyCompact(remainingMinor)}.`;
+    }
+    const extraMinor = diff;
+    return `That's ${formatMoneyCompact(extraMinor)} more than ${counterpartName} owes. You will owe ${counterpartName} ${formatMoneyCompact(extraMinor)} back.`;
+  }
+}
+
+export interface FormattedPendingSettlement {
+  id: string;
+  isActionableByMe: boolean;
+  role: 'receiver' | 'payer';
+  title: string;
+  subtitle?: string;
+  amountMinor: number;
+  amountText: string;
+  method: string;
+  status: SettlementStatus | string;
+  canConfirm: boolean;
+  canDispute: boolean;
+  canCancel: boolean;
+  counterpartName: string;
+  accessibleText: string;
+}
+
+/**
+ * Formats a pending or disputed settlement for the Pending section of the Balances tab (Case BU4).
+ */
+export function formatPendingSettlement(
+  settlement: {
+    id: string;
+    from_user: string;
+    to_user: string;
+    amount_minor: number;
+    method: string;
+    status: SettlementStatus | string;
+    note?: string | null;
+  },
+  currentUserId: string,
+  nameResolver: (userId: string) => string
+): FormattedPendingSettlement {
+  const isReceiver = settlement.to_user === currentUserId;
+  const amountText = formatMoneyCompact(settlement.amount_minor);
+  const methodLabel = settlement.method === 'cash' ? 'cash' : 'other';
+
+  const payerName = nameResolver(settlement.from_user) || 'Member';
+  const receiverName = nameResolver(settlement.to_user) || 'Member';
+  const counterpartName = isReceiver ? payerName : receiverName;
+
+  if (isReceiver) {
+    if (settlement.status === 'disputed') {
+      const title = `${payerName} paid you ${amountText} (${methodLabel})`;
+      const subtitle = 'Marked as not received by you';
+      return {
+        id: settlement.id,
+        isActionableByMe: true,
+        role: 'receiver',
+        title,
+        subtitle,
+        amountMinor: settlement.amount_minor,
+        amountText,
+        method: settlement.method,
+        status: settlement.status,
+        canConfirm: true, // ST3: receiver can still confirm disputed
+        canDispute: false,
+        canCancel: false,
+        counterpartName,
+        accessibleText: `${title}. ${subtitle}. Confirm button available.`,
+      };
+    }
+
+    // Pending for receiver (ST1, ST2)
+    const title = `${payerName} says they paid you ${amountText} (${methodLabel})`;
+    return {
+      id: settlement.id,
+      isActionableByMe: true,
+      role: 'receiver',
+      title,
+      subtitle: settlement.note ? `Note: ${settlement.note}` : undefined,
+      amountMinor: settlement.amount_minor,
+      amountText,
+      method: settlement.method,
+      status: settlement.status,
+      canConfirm: true,
+      canDispute: true,
+      canCancel: false,
+      counterpartName,
+      accessibleText: `${title}. Confirm and dispute buttons available.`,
+    };
+  }
+
+  // Caller is payer (ST4, ST5)
+  if (settlement.status === 'disputed') {
+    const title = `${receiverName} says they didn't receive this (${amountText})`;
+    return {
+      id: settlement.id,
+      isActionableByMe: true, // Payer should cancel
+      role: 'payer',
+      title,
+      subtitle: settlement.note ? `Note: ${settlement.note}` : undefined,
+      amountMinor: settlement.amount_minor,
+      amountText,
+      method: settlement.method,
+      status: settlement.status,
+      canConfirm: false,
+      canDispute: false,
+      canCancel: true,
+      counterpartName,
+      accessibleText: `${title}. Cancel payment button available.`,
+    };
+  }
+
+  // Pending for payer (waiting for receiver)
+  const title = `Waiting for ${receiverName} to confirm ${amountText}`;
+  return {
+    id: settlement.id,
+    isActionableByMe: false,
+    role: 'payer',
+    title,
+    subtitle: settlement.note ? `Note: ${settlement.note}` : undefined,
+    amountMinor: settlement.amount_minor,
+    amountText,
+    method: settlement.method,
+    status: settlement.status,
+    canConfirm: false,
+    canDispute: false,
+    canCancel: true,
+    counterpartName,
+    accessibleText: `${title}. Cancel button available.`,
+  };
+}
+
+/**
+ * Sorts pending settlements: items needing caller's action first (receiver),
+ * then caller's waiting payments (payer) (Case BU4).
+ */
+export function sortPendingSettlements<T extends { role: 'receiver' | 'payer'; created_at?: string }>(
+  items: T[]
+): T[] {
+  return [...items].sort((a, b) => {
+    if (a.role === 'receiver' && b.role !== 'receiver') return -1;
+    if (a.role !== 'receiver' && b.role === 'receiver') return 1;
+
+    if (a.created_at && b.created_at) {
+      return b.created_at.localeCompare(a.created_at);
+    }
+    return 0;
+  });
+}
+
+export interface HomeBalanceSummaryInput {
+  owed_to_me_minor: number;
+  i_owe_minor: number;
+  net_minor: number;
+  groups_with_dues: number;
+  pending_for_me: number;
+}
+
+export interface FormattedHomeSummary {
+  primaryText: string;
+  secondaryText?: string;
+  state: BalanceState;
+  pendingBadgeText?: string;
+  pendingCount: number;
+  hasDues: boolean;
+  accessibleText: string;
+}
+
+/**
+ * Formats cross-group balance summary for Home / Groups tab top card (Cases HO1, HO7, HO10).
+ *
+ * e.g.,
+ * HO1: "You are owed ₹960 in total"
+ * HO1: "You owe ₹300 in total"
+ * HO1: "All settled up"
+ * HO10: Both owed and owe -> "You are owed ₹660 overall" with "Owed ₹960 · You owe ₹300"
+ * HO9: "1 payment to confirm" badge
+ */
+export function formatHomeBalanceSummary(summary: HomeBalanceSummaryInput): FormattedHomeSummary {
+  const { owed_to_me_minor, i_owe_minor, net_minor, pending_for_me } = summary;
+  const pendingBadgeText =
+    pending_for_me > 0
+      ? `${pending_for_me} ${pending_for_me === 1 ? 'payment' : 'payments'} to confirm`
+      : undefined;
+
+  // Case HO10: Owed in one group and owe in another
+  if (owed_to_me_minor > 0 && i_owe_minor > 0) {
+    const owedText = formatMoneyCompact(owed_to_me_minor);
+    const oweText = formatMoneyCompact(i_owe_minor);
+    const netState: BalanceState = net_minor > 0 ? 'owed' : net_minor < 0 ? 'owe' : 'settled';
+    const netFormatted = formatMoneyCompact(Math.abs(net_minor));
+
+    let primaryText = '';
+    if (net_minor > 0) {
+      primaryText = `You are owed ${netFormatted} overall`;
+    } else if (net_minor < 0) {
+      primaryText = `You owe ${netFormatted} overall`;
+    } else {
+      primaryText = 'All settled up overall';
+    }
+
+    const secondaryText = `Owed ${owedText} · You owe ${oweText}`;
+    return {
+      primaryText,
+      secondaryText,
+      state: netState,
+      pendingBadgeText,
+      pendingCount: pending_for_me,
+      hasDues: true,
+      accessibleText: `${primaryText}. ${secondaryText}.${pendingBadgeText ? ` ${pendingBadgeText}.` : ''}`,
+    };
+  }
+
+  // Only owed
+  if (owed_to_me_minor > 0) {
+    const amountText = formatMoneyCompact(owed_to_me_minor);
+    const primaryText = `You are owed ${amountText} in total`;
+    return {
+      primaryText,
+      secondaryText: undefined,
+      state: 'owed',
+      pendingBadgeText,
+      pendingCount: pending_for_me,
+      hasDues: true,
+      accessibleText: `${primaryText}.${pendingBadgeText ? ` ${pendingBadgeText}.` : ''}`,
+    };
+  }
+
+  // Only owe
+  if (i_owe_minor > 0) {
+    const amountText = formatMoneyCompact(i_owe_minor);
+    const primaryText = `You owe ${amountText} in total`;
+    return {
+      primaryText,
+      secondaryText: undefined,
+      state: 'owe',
+      pendingBadgeText,
+      pendingCount: pending_for_me,
+      hasDues: true,
+      accessibleText: `${primaryText}.${pendingBadgeText ? ` ${pendingBadgeText}.` : ''}`,
+    };
+  }
+
+  // All settled up (HO1, HO3)
+  return {
+    primaryText: 'All settled up',
+    secondaryText: 'No outstanding balances in any group',
+    state: 'settled',
+    pendingBadgeText,
+    pendingCount: pending_for_me,
+    hasDues: false,
+    accessibleText: `All settled up. No outstanding balances in any group.${pendingBadgeText ? ` ${pendingBadgeText}.` : ''}`,
+  };
+}
+
+export interface FormattedSettlementHistoryRow {
+  id: string;
+  sentence: string;
+  fromName: string;
+  toName: string;
+  amountText: string;
+  methodLabel: string;
+  statusLabel: string;
+  statusChip: string;
+  statusState: 'warning' | 'success' | 'error' | 'muted';
+  note?: string | null;
+  createdAt: string;
+  timeAgo: string;
+  canConfirm: boolean;
+  canDispute: boolean;
+  canCancel: boolean;
+  canUndo: boolean;
+  accessibleText: string;
+}
+
+/**
+ * Formats a settlement history item for list display (Cases SH1, SH2, SH3, SH4).
+ * Row text: "Rahul paid Priya ₹300 · Cash · Confirmed"
+ */
+export function formatSettlementHistoryRow(
+  item: {
+    id: string;
+    from_user: string;
+    to_user: string;
+    amount_minor: number;
+    method: string;
+    status: SettlementStatus | string;
+    note?: string | null;
+    created_at: string;
+    can_confirm: boolean;
+    can_dispute: boolean;
+    can_cancel: boolean;
+    can_undo: boolean;
+  },
+  currentUserId: string,
+  nameResolver: (userId: string) => string
+): FormattedSettlementHistoryRow {
+  const isPayer = item.from_user === currentUserId;
+  const isReceiver = item.to_user === currentUserId;
+
+  const rawFrom = nameResolver(item.from_user) || 'Deleted user';
+  const rawTo = nameResolver(item.to_user) || 'Deleted user';
+
+  const fromName = isPayer ? 'You' : rawFrom;
+  const toName = isReceiver ? 'you' : rawTo;
+
+  const amountText = formatMoneyCompact(item.amount_minor);
+  const methodLabel = item.method === 'cash' ? 'Cash' : item.method === 'upi' ? 'UPI' : 'Other';
+  const statusMeta = formatSettlementStatus(item.status);
+
+  // SH2: "Rahul paid Priya ₹300 · Cash · Confirmed"
+  const actionVerb = item.status === 'confirmed' ? 'paid' : 'sent';
+  const sentence = `${fromName} ${actionVerb} ${toName} ${amountText} · ${methodLabel} · ${statusMeta.chipLabel}`;
+
+  // Time formatting helper
+  const date = new Date(item.created_at);
+  const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  let timeAgo = 'Just now';
+  if (diffSec >= 60 && diffSec < 3600) {
+    timeAgo = `${Math.floor(diffSec / 60)}m ago`;
+  } else if (diffSec >= 3600 && diffSec < 86400) {
+    timeAgo = `${Math.floor(diffSec / 3600)}h ago`;
+  } else if (diffSec >= 86400) {
+    timeAgo = `${Math.floor(diffSec / 86400)}d ago`;
+  }
+
+  return {
+    id: item.id,
+    sentence,
+    fromName,
+    toName,
+    amountText,
+    methodLabel,
+    statusLabel: statusMeta.label,
+    statusChip: statusMeta.chipLabel,
+    statusState: statusMeta.state,
+    note: item.note,
+    createdAt: item.created_at,
+    timeAgo,
+    canConfirm: item.can_confirm,
+    canDispute: item.can_dispute,
+    canCancel: item.can_cancel,
+    canUndo: item.can_undo,
+    accessibleText: `${sentence}. ${item.note ? `Note: ${item.note}.` : ''}`,
+  };
+}

@@ -101,6 +101,10 @@ function RootNavigator() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="group/[id]/settlements/index"
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="account/delete" options={{ headerShown: false }} />
         <Stack.Screen name="dev/components" options={{ headerShown: false }} />
       </Stack.Protected>

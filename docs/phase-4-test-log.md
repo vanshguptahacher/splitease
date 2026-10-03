@@ -93,6 +93,8 @@
 | **EL (List & Detail)** | EL1 to EL12: Date sectioning (Today, Yesterday, Date), Keyset cursor pagination, Plain-words financial effects ("you lent", "you owe", "not involved"), former member fallback | `tests/expensesListDetailUi.test.tsx` | **PASS** |
 | **EV (Activity)** | EV1 to EV9: Human-readable activity feed ("Rahul added 'Dinner' ₹1,200", "You deleted 'Taxi' ₹350", amount change arrows), "You" self-resolution, "Deleted user" fallback, tap navigation to expense/group | `tests/activityUi.test.tsx` | **PASS** |
 | **EG (Groups Interplay)**| EG1 to EG7: Groups sorted by `last_activity_at desc`, group deletion cascades to expenses and activity, former member locking & unlock on rejoin | `tests/groupDetailUi.test.tsx`, `supabase/tests/database/expenses_write_rpcs.test.sql` | **PASS** |
+| ↳ **EG3** | Member leaves or removed with expenses | Past expenses preserved in group ledger with member's historical name; leaving/removal requires zero net balance and no pending settlements (`member_is_settled`); former member locks on expenses active until rejoin | `tests/groupDetailUi.test.tsx`, `supabase/tests/database/settlement_integrations.test.sql` | **PASS** |
+| ↳ **EG4** | Account deletion with expense references | Profile anonymized ("Deleted user") rather than cascading; blocked if user has non-zero net balance or pending settlements | `tests/deleteAccount.test.ts`, `supabase/tests/database/account_deletion.test.sql` | **PASS** |
 
 ---
 

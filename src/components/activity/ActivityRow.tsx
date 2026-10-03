@@ -41,6 +41,22 @@ export function ActivityRow({ item, currentUserId, onPress }: ActivityRowProps) 
       iconColor = palette.owed;
       iconName = 'refresh';
       break;
+    case 'settlement':
+      if (formatted.iconColorType === 'success') {
+        badgeBg = palette.owedContainer;
+        iconColor = palette.owed;
+      } else if (formatted.iconColorType === 'warning') {
+        badgeBg = palette.oweContainer;
+        iconColor = palette.owe;
+      } else if (formatted.iconColorType === 'danger') {
+        badgeBg = palette.errorContainer;
+        iconColor = palette.error;
+      } else {
+        badgeBg = theme.colors.surfaceVariant;
+        iconColor = theme.colors.muted;
+      }
+      iconName = (formatted.iconName as any) || 'cash-outline';
+      break;
     default:
       badgeBg = theme.colors.surfaceVariant;
       iconColor = theme.colors.muted;
@@ -70,21 +86,30 @@ export function ActivityRow({ item, currentUserId, onPress }: ActivityRowProps) 
 
       {/* Main Details */}
       <View style={styles.textContainer}>
-        <Text
-          style={[styles.sentence, { color: theme.colors.text }]}
-          numberOfLines={2}
-        >
-          <Text style={styles.actorText}>{formatted.actor} </Text>
-          {formatted.actionType === 'added' && 'added '}
-          {formatted.actionType === 'edited' && 'changed '}
-          {formatted.actionType === 'deleted' && 'deleted '}
-          {formatted.actionType === 'restored' && 'restored '}
-          {formatted.actionType === 'other' && `${item.action} `}
-          <Text style={styles.descText}>{formatted.description}</Text>
-          {formatted.amountText ? (
-            <Text style={styles.amountText}> {formatted.amountText}</Text>
-          ) : null}
-        </Text>
+        {formatted.actionType === 'settlement' ? (
+          <Text
+            style={[styles.sentence, { color: theme.colors.text }]}
+            numberOfLines={2}
+          >
+            {formatted.primaryText}
+          </Text>
+        ) : (
+          <Text
+            style={[styles.sentence, { color: theme.colors.text }]}
+            numberOfLines={2}
+          >
+            <Text style={styles.actorText}>{formatted.actor} </Text>
+            {formatted.actionType === 'added' && 'added '}
+            {formatted.actionType === 'edited' && 'changed '}
+            {formatted.actionType === 'deleted' && 'deleted '}
+            {formatted.actionType === 'restored' && 'restored '}
+            {formatted.actionType === 'other' && `${item.action} `}
+            <Text style={styles.descText}>{formatted.description}</Text>
+            {formatted.amountText ? (
+              <Text style={styles.amountText}> {formatted.amountText}</Text>
+            ) : null}
+          </Text>
+        )}
 
         {/* Group and Timestamp meta */}
         <View style={styles.metaRow}>

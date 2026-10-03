@@ -1,10 +1,15 @@
 import {
   formatGroupRowBalance,
+  formatHomeBalanceSummary,
   formatMemberBalance,
   formatNetSummary,
+  formatPendingSettlement,
+  formatSettlementHistoryRow,
   formatSettlementStatus,
+  formatSettleComparisonText,
   formatSuggestedPayment,
   sortMembersForBalances,
+  sortPendingSettlements,
   SUGGESTIONS_COPY,
   ALL_SETTLED_TITLE,
   ALL_SETTLED_SUBTITLE,
@@ -239,6 +244,295 @@ describe('balanceText.ts pure functions', () => {
       expect(SUGGESTIONS_COPY).toBe('Suggested payments update when expenses change.');
       expect(ALL_SETTLED_TITLE).toBe('All settled up');
       expect(ALL_SETTLED_SUBTITLE).toBe('No outstanding balances or payments in this group.');
+    });
+  });
+
+  describe('formatSettleComparisonText (SC10, SC11, SC12)', () => {
+    it('returns prompt to enter amount when entered <= 0', () => {
+      const text = formatSettleComparisonText({
+        direction: 'payer',
+        counterpartName: 'Priya',
+        enteredMinor: 0,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe('Enter an amount to settle.');
+    });
+
+    it('formats equal payer payment: "You\'ll be settled with [Name] once they confirm."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'payer',
+        counterpartName: 'Priya',
+        enteredMinor: 30000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe("You'll be settled with Priya once they confirm.");
+    });
+
+    it('formats partial payer payment (SC12): "You\'ll still owe [Name] ₹X."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'payer',
+        counterpartName: 'Priya',
+        enteredMinor: 20000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe("You'll still owe Priya ₹100.");
+    });
+
+    it('formats overpayment (SC10): "That\'s ₹X more than you owe. [Name] will owe you ₹X back."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'payer',
+        counterpartName: 'Priya',
+        enteredMinor: 50000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe("That's ₹200 more than you owe. Priya will owe you ₹200 back.");
+    });
+
+    it('formats equal receiver payment: "You\'ll be settled with [Name]."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'receiver',
+        counterpartName: 'Rahul',
+        enteredMinor: 30000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe("You'll be settled with Rahul.");
+    });
+
+    it('formats partial receiver payment: "[Name] will still owe you ₹X."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'receiver',
+        counterpartName: 'Rahul',
+        enteredMinor: 20000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe('Rahul will still owe you ₹100.');
+    });
+
+    it('formats overpayment for receiver: "That\'s ₹X more than [Name] owes. You will owe [Name] ₹X back."', () => {
+      const text = formatSettleComparisonText({
+        direction: 'receiver',
+        counterpartName: 'Rahul',
+        enteredMinor: 50000,
+        expectedMinor: 30000,
+      });
+      expect(text).toBe("That's ₹200 more than Rahul owes. You will owe Rahul ₹200 back.");
+    });
+  });
+
+  describe('formatPendingSettlement (BU4, ST1-ST5)', () => {
+    it('formats pending settlement for receiver with confirm and dispute flags', () => {
+      const item = {
+        id: 'settlement-1',
+        from_user: USER_RAHUL,
+        to_user: CURRENT_USER,
+        amount_minor: 30000,
+        method: 'cash',
+        status: 'pending',
+        note: 'lunch share',
+      };
+
+      const res = formatPendingSettlement(item, CURRENT_USER, nameResolver);
+      expect(res.role).toBe('receiver');
+      expect(res.isActionableByMe).toBe(true);
+      expect(res.title).toBe('Rahul says they paid you ₹300 (cash)');
+      expect(res.subtitle).toBe('Note: lunch share');
+      expect(res.canConfirm).toBe(true);
+      expect(res.canDispute).toBe(true);
+      expect(res.canCancel).toBe(false);
+      expect(res.counterpartName).toBe('Rahul');
+    });
+
+    it('formats disputed settlement for receiver with confirm flag enabled (ST3)', () => {
+      const item = {
+        id: 'settlement-2',
+        from_user: USER_RAHUL,
+        to_user: CURRENT_USER,
+        amount_minor: 30000,
+        method: 'cash',
+        status: 'disputed',
+      };
+
+      const res = formatPendingSettlement(item, CURRENT_USER, nameResolver);
+      expect(res.role).toBe('receiver');
+      expect(res.isActionableByMe).toBe(true);
+      expect(res.title).toBe('Rahul paid you ₹300 (cash)');
+      expect(res.subtitle).toBe('Marked as not received by you');
+      expect(res.canConfirm).toBe(true);
+      expect(res.canDispute).toBe(false);
+      expect(res.canCancel).toBe(false);
+    });
+
+    it('formats pending settlement for payer with cancel flag', () => {
+      const item = {
+        id: 'settlement-3',
+        from_user: CURRENT_USER,
+        to_user: USER_PRIYA,
+        amount_minor: 30000,
+        method: 'cash',
+        status: 'pending',
+      };
+
+      const res = formatPendingSettlement(item, CURRENT_USER, nameResolver);
+      expect(res.role).toBe('payer');
+      expect(res.isActionableByMe).toBe(false);
+      expect(res.title).toBe('Waiting for Priya to confirm ₹300');
+      expect(res.canConfirm).toBe(false);
+      expect(res.canDispute).toBe(false);
+      expect(res.canCancel).toBe(true);
+    });
+
+    it('formats disputed settlement for payer with cancel flag', () => {
+      const item = {
+        id: 'settlement-4',
+        from_user: CURRENT_USER,
+        to_user: USER_PRIYA,
+        amount_minor: 30000,
+        method: 'cash',
+        status: 'disputed',
+      };
+
+      const res = formatPendingSettlement(item, CURRENT_USER, nameResolver);
+      expect(res.role).toBe('payer');
+      expect(res.isActionableByMe).toBe(true);
+      expect(res.title).toBe("Priya says they didn't receive this (₹300)");
+      expect(res.canConfirm).toBe(false);
+      expect(res.canDispute).toBe(false);
+      expect(res.canCancel).toBe(true);
+    });
+  });
+
+  describe('sortPendingSettlements (BU4)', () => {
+    it('places items where caller is receiver (actionable first) before payer items', () => {
+      const items = [
+        { id: '1', role: 'payer' as const, created_at: '2026-10-04T01:00:00Z' },
+        { id: '2', role: 'receiver' as const, created_at: '2026-10-04T01:05:00Z' },
+        { id: '3', role: 'payer' as const, created_at: '2026-10-04T01:10:00Z' },
+      ];
+
+      const sorted = sortPendingSettlements(items);
+      expect(sorted[0].id).toBe('2'); // Receiver first
+      expect(sorted[1].id).toBe('3'); // Payer newest
+      expect(sorted[2].id).toBe('1'); // Payer older
+    });
+  });
+
+  describe('formatHomeBalanceSummary (HO1, HO7, HO9, HO10)', () => {
+    it('formats when only owed across groups (HO1)', () => {
+      const summary = {
+        owed_to_me_minor: 96000,
+        i_owe_minor: 0,
+        net_minor: 96000,
+        groups_with_dues: 2,
+        pending_for_me: 0,
+      };
+
+      const res = formatHomeBalanceSummary(summary);
+      expect(res.primaryText).toBe('You are owed ₹960 in total');
+      expect(res.secondaryText).toBeUndefined();
+      expect(res.state).toBe('owed');
+      expect(res.pendingBadgeText).toBeUndefined();
+      expect(res.hasDues).toBe(true);
+    });
+
+    it('formats when only owe across groups (HO1)', () => {
+      const summary = {
+        owed_to_me_minor: 0,
+        i_owe_minor: 30000,
+        net_minor: -30000,
+        groups_with_dues: 1,
+        pending_for_me: 0,
+      };
+
+      const res = formatHomeBalanceSummary(summary);
+      expect(res.primaryText).toBe('You owe ₹300 in total');
+      expect(res.secondaryText).toBeUndefined();
+      expect(res.state).toBe('owe');
+      expect(res.hasDues).toBe(true);
+    });
+
+    it('formats dual dues with net and breakdown (HO10)', () => {
+      const summary = {
+        owed_to_me_minor: 96000,
+        i_owe_minor: 30000,
+        net_minor: 66000,
+        groups_with_dues: 3,
+        pending_for_me: 2,
+      };
+
+      const res = formatHomeBalanceSummary(summary);
+      expect(res.primaryText).toBe('You are owed ₹660 overall');
+      expect(res.secondaryText).toBe('Owed ₹960 · You owe ₹300');
+      expect(res.state).toBe('owed');
+      expect(res.pendingBadgeText).toBe('2 payments to confirm');
+      expect(res.pendingCount).toBe(2);
+      expect(res.hasDues).toBe(true);
+    });
+
+    it('formats all settled up when zero balance (HO1, HO3)', () => {
+      const summary = {
+        owed_to_me_minor: 0,
+        i_owe_minor: 0,
+        net_minor: 0,
+        groups_with_dues: 0,
+        pending_for_me: 0,
+      };
+
+      const res = formatHomeBalanceSummary(summary);
+      expect(res.primaryText).toBe('All settled up');
+      expect(res.secondaryText).toBe('No outstanding balances in any group');
+      expect(res.state).toBe('settled');
+      expect(res.hasDues).toBe(false);
+    });
+  });
+
+  describe('formatSettlementHistoryRow (SH1, SH2, SH3, SH4)', () => {
+    it('formats row where user is payer and status is confirmed (SH2)', () => {
+      const item = {
+        id: 'settle-1',
+        from_user: CURRENT_USER,
+        to_user: USER_PRIYA,
+        amount_minor: 30000,
+        method: 'cash',
+        status: 'confirmed' as const,
+        note: 'Dinner split',
+        created_at: new Date().toISOString(),
+        can_confirm: false,
+        can_dispute: false,
+        can_cancel: false,
+        can_undo: false,
+      };
+
+      const res = formatSettlementHistoryRow(item, CURRENT_USER, nameResolver);
+      expect(res.sentence).toBe('You paid Priya ₹300 · Cash · Confirmed');
+      expect(res.fromName).toBe('You');
+      expect(res.toName).toBe('Priya');
+      expect(res.amountText).toBe('₹300');
+      expect(res.methodLabel).toBe('Cash');
+      expect(res.statusChip).toBe('Confirmed');
+      expect(res.statusState).toBe('success');
+      expect(res.note).toBe('Dinner split');
+    });
+
+    it('formats row with deleted user fallback (SH4)', () => {
+      const item = {
+        id: 'settle-2',
+        from_user: 'deleted-user-uuid',
+        to_user: CURRENT_USER,
+        amount_minor: 50000,
+        method: 'other',
+        status: 'pending' as const,
+        note: null,
+        created_at: new Date().toISOString(),
+        can_confirm: true,
+        can_dispute: true,
+        can_cancel: false,
+        can_undo: false,
+      };
+
+      const res = formatSettlementHistoryRow(item, CURRENT_USER, () => 'Deleted user');
+      expect(res.sentence).toBe('Deleted user sent you ₹500 · Other · Waiting');
+      expect(res.canConfirm).toBe(true);
+      expect(res.canDispute).toBe(true);
     });
   });
 });

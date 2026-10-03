@@ -22,9 +22,13 @@ import {
   Screen,
   useSnackbar,
 } from '@/components';
-import { useAuth, useGroups, useNetworkStatus } from '@/hooks';
+import { useAuth, useGroups, useMyBalanceSummary, useNetworkStatus } from '@/hooks';
 import { toFriendlyMessage } from '@/lib/errors';
 import { formatTimeAgo } from '@/lib/activity/formatActivity';
+import {
+  formatGroupRowBalance,
+  formatHomeBalanceSummary,
+} from '@/lib/money/balanceText';
 import { useAppTheme } from '@/lib/theme';
 import { GroupSummary } from '@/types/database';
 
@@ -34,15 +38,23 @@ export default function GroupsTabScreen() {
   const { showSnackbar } = useSnackbar();
   const { isOffline } = useNetworkStatus();
   const { data: groups, isLoading, isError, error, refetch, isRefetching } = useGroups();
+  const { data: summary, refetch: refetchSummary } = useMyBalanceSummary();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
 
-  // Refetch when tab comes into focus (GN2)
+  // Refetch when tab comes into focus (GN2, HO5)
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch])
+      refetchSummary();
+    }, [refetch, refetchSummary])
   );
+
+  const handleRefresh = async () => {
+    await Promise.all([refetch(), refetchSummary()]);
+  };
+
+  const homeSummary = summary ? formatHomeBalanceSummary(summary) : null;
 
   const openAddExpense = () => {
     setSheetVisible(false);
@@ -70,9 +82,110 @@ export default function GroupsTabScreen() {
     router.push('/group/join');
   };
 
+  // Top Card on Groups Tab (Cases HO1, HO7, HO10, HO9)
+  const renderHomeSummaryCard = () => {
+    if (!homeSummary) return null;
+
+    let iconName: keyof typeof Ionicons.glyphMap = 'checkmark';
+    let iconBg = theme.colors.surfaceVariant;
+    let iconColor = theme.colors.muted;
+    let textColor = theme.colors.text;
+
+    if (homeSummary.state === 'owed') {
+      iconName = 'arrow-down';
+      iconBg = theme.colors.owed;
+      iconColor = '#ffffff';
+      textColor = theme.colors.owed;
+    } else if (homeSummary.state === 'owe') {
+      iconName = 'arrow-up';
+      iconBg = theme.colors.owe;
+      iconColor = '#ffffff';
+      textColor = theme.colors.owe;
+    }
+
+    return (
+      <View
+        testID="home-overview-card"
+        style={[
+          styles.summaryCard,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.outline,
+            borderRadius: theme.radius.card,
+            padding: theme.spacing.lg,
+            marginBottom: theme.spacing.lg,
+          },
+        ]}
+        accessibilityLabel={homeSummary.accessibleText}
+      >
+        <View style={styles.summaryTopRow}>
+          <View style={[styles.summaryIconBadge, { backgroundColor: iconBg }]}>
+            <Ionicons name={iconName} size={18} color={iconColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                theme.typography.sectionTitle,
+                { color: textColor, fontWeight: '700' },
+              ]}
+              testID="home-summary-primary-text"
+            >
+              {homeSummary.primaryText}
+            </Text>
+            {homeSummary.secondaryText ? (
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.muted, marginTop: 2 },
+                ]}
+              >
+                {homeSummary.secondaryText}
+              </Text>
+            ) : null}
+          </View>
+
+          {/* Pending badge (HO9) */}
+          {homeSummary.pendingBadgeText ? (
+            <View
+              style={[
+                styles.pendingSummaryBadge,
+                { backgroundColor: theme.colors.secondaryContainer },
+              ]}
+              testID="home-summary-pending-badge"
+            >
+              <Ionicons
+                name="alert-circle"
+                size={14}
+                color={theme.colors.onSecondaryContainer}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.onSecondaryContainer, fontWeight: '700', fontSize: 11 },
+                ]}
+              >
+                {homeSummary.pendingBadgeText}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
   const renderGroupCard = ({ item }: { item: GroupSummary }) => {
     const isAdmin = item.my_role === 'admin';
     const initial = (item.name || 'G').trim().charAt(0).toUpperCase();
+
+    // Group balance in words (HO2, HO3)
+    const balance = formatGroupRowBalance(item.my_balance_minor);
+    const balanceColor =
+      balance.state === 'owed'
+        ? theme.colors.owed
+        : balance.state === 'owe'
+        ? theme.colors.owe
+        : theme.colors.muted;
 
     return (
       <TouchableOpacity
@@ -94,7 +207,7 @@ export default function GroupsTabScreen() {
         }
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={`Group ${item.name}, ${item.member_count} members${isAdmin ? ', Admin' : ''}`}
+        accessibilityLabel={`Group ${item.name}, ${item.member_count} members, ${balance.accessibleText}${isAdmin ? ', Admin' : ''}`}
       >
         <View style={styles.cardRow}>
           {/* Avatar / Initial circle */}
@@ -158,15 +271,53 @@ export default function GroupsTabScreen() {
               )}
             </View>
 
-            <Text
-              style={[
-                theme.typography.caption,
-                { color: theme.colors.muted, marginTop: 4 },
-              ]}
-            >
-              {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
-              {item.last_activity_at ? ` · Active ${formatTimeAgo(item.last_activity_at)}` : ''}
-            </Text>
+            <View style={styles.metaRow}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.muted },
+                ]}
+              >
+                {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
+                {item.last_activity_at ? ` · Active ${formatTimeAgo(item.last_activity_at)}` : ''}
+              </Text>
+            </View>
+
+            {/* Balance in words (HO2, HO3) and Pending Badge (HO9) */}
+            <View style={styles.balanceRow}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: balanceColor, fontWeight: '700' },
+                ]}
+                testID={`group-balance-text-${item.group_id}`}
+              >
+                {balance.text}
+              </Text>
+
+              {item.my_pending_actions > 0 && (
+                <View
+                  style={[
+                    styles.groupPendingBadge,
+                    { backgroundColor: theme.colors.secondaryContainer },
+                  ]}
+                  testID={`group-pending-badge-${item.group_id}`}
+                >
+                  <Text
+                    style={[
+                      theme.typography.caption,
+                      {
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: '700',
+                        fontSize: 10,
+                      },
+                    ]}
+                  >
+                    {item.my_pending_actions} to confirm
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <Ionicons
@@ -234,6 +385,7 @@ export default function GroupsTabScreen() {
           <FlatList
             data={groups}
             keyExtractor={(item) => item.group_id}
+            ListHeaderComponent={renderHomeSummaryCard}
             renderItem={renderGroupCard}
             contentContainerStyle={[
               styles.listContent,
@@ -242,7 +394,7 @@ export default function GroupsTabScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={isRefetching}
-                onRefresh={refetch}
+                onRefresh={handleRefresh}
                 tintColor={theme.colors.primary}
                 colors={[theme.colors.primary]}
               />
@@ -506,6 +658,46 @@ const styles = StyleSheet.create({
   },
   cardDetails: {
     flex: 1,
+  },
+  summaryCard: {
+    borderWidth: 1,
+  },
+  summaryTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  summaryIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  pendingSummaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  groupPendingBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
   },
   titleRow: {
     flexDirection: 'row',

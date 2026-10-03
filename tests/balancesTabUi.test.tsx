@@ -44,11 +44,15 @@ const initialMetrics = {
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
 };
 
+import { SnackbarProvider } from '@/components/Snackbar';
+
 async function renderWithProviders(ui: React.ReactElement) {
   return await render(
     <SafeAreaProvider initialMetrics={initialMetrics}>
       <QueryClientProvider client={queryClient}>
-        <PaperProvider theme={appLightTheme}>{ui}</PaperProvider>
+        <PaperProvider theme={appLightTheme}>
+          <SnackbarProvider>{ui}</SnackbarProvider>
+        </PaperProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

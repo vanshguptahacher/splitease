@@ -28,6 +28,7 @@ import { supabase } from '@/lib/supabase/client';
 import { toFriendlyMessage } from '@/lib/errors';
 import { signInWithGoogle } from '@/lib/auth/google';
 import { deleteAvatarFile } from '@/lib/auth/avatar';
+import { formatGroupRowBalance } from '@/lib/money/balanceText';
 
 type DeleteStep = 'explain' | 'verify' | 'confirm' | 'deleting' | 'error';
 
@@ -303,44 +304,63 @@ export default function DeleteAccountScreen() {
                   Unsettled groups:
                 </Text>
 
-                {unsettledGroups.map((g: any) => (
-                  <View
-                    key={g.id}
-                    style={[
-                      styles.groupBlockerRow,
-                      {
-                        backgroundColor: theme.colors.surface,
-                        borderColor: theme.colors.outline,
-                        borderRadius: theme.radius.sm,
-                        padding: theme.spacing.md,
-                        marginBottom: 8,
-                      },
-                    ]}
-                  >
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text
-                        style={[
-                          theme.typography.body,
-                          { color: theme.colors.text, fontWeight: '700' },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {g.name}
-                      </Text>
+                {unsettledGroups.map((g: any) => {
+                  const bal = formatGroupRowBalance(g.my_net_minor ?? 0);
+                  const balColor =
+                    bal.state === 'owed'
+                      ? theme.colors.owed
+                      : bal.state === 'owe'
+                      ? theme.colors.owe
+                      : theme.colors.muted;
+
+                  return (
+                    <View
+                      key={g.id}
+                      style={[
+                        styles.groupBlockerRow,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.outline,
+                          borderRadius: theme.radius.sm,
+                          padding: theme.spacing.md,
+                          marginBottom: 8,
+                        },
+                      ]}
+                    >
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text
+                          style={[
+                            theme.typography.body,
+                            { color: theme.colors.text, fontWeight: '700' },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {g.name}
+                        </Text>
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            { color: balColor, fontWeight: '600', marginTop: 2 },
+                          ]}
+                        >
+                          {bal.text}
+                          {g.pending_count > 0 ? ` · ${g.pending_count} pending` : ''}
+                        </Text>
+                      </View>
+                      <AppButton
+                        title="Go to Balances"
+                        variant="secondary"
+                        onPress={() =>
+                          router.push({
+                            pathname: '/group/[id]',
+                            params: { id: g.id, tab: 'balances' },
+                          } as any)
+                        }
+                        testID={`go-to-balances-${g.id}`}
+                      />
                     </View>
-                    <AppButton
-                      title="View group"
-                      variant="secondary"
-                      onPress={() =>
-                        router.push({
-                          pathname: '/group/[id]',
-                          params: { id: g.id },
-                        } as any)
-                      }
-                      testID={`view-group-${g.id}`}
-                    />
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
 

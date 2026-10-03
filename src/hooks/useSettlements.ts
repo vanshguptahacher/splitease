@@ -1,4 +1,11 @@
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  InfiniteData,
+  QueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   cancelSettlement,
   confirmSettlement,
@@ -68,6 +75,30 @@ export function useSettlements(
   return useQuery<SettlementListItem[], Error>({
     queryKey: [...queryKeys.groups.settlements(groupId ?? ''), limit, cursor],
     queryFn: () => listSettlements(groupId!, limit, cursor),
+    enabled: Boolean(groupId),
+  });
+}
+
+/**
+ * 3b. useInfiniteSettlements
+ * Keyset-paginated settlement history for a group with caller action flags (Cases SH1, SH7).
+ */
+export function useInfiniteSettlements(groupId: string | undefined, limit = 30) {
+  return useInfiniteQuery<
+    SettlementListItem[],
+    Error,
+    InfiniteData<SettlementListItem[], SettlementCursor | null>,
+    readonly unknown[],
+    SettlementCursor | null
+  >({
+    queryKey: [...queryKeys.groups.settlements(groupId ?? ''), 'infinite', limit],
+    queryFn: ({ pageParam }) => listSettlements(groupId!, limit, pageParam),
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.length < limit) return undefined;
+      const lastItem = lastPage[lastPage.length - 1];
+      return (lastItem?.next_cursor as unknown as SettlementCursor) ?? undefined;
+    },
     enabled: Boolean(groupId),
   });
 }

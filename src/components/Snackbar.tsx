@@ -37,7 +37,10 @@ const SnackbarContext = createContext<SnackbarContextType | null>(null);
 export function useSnackbar(): SnackbarContextType {
   const context = useContext(SnackbarContext);
   if (!context) {
-    throw new Error('useSnackbar must be used within a SnackbarProvider');
+    return {
+      showSnackbar: () => {},
+      hideSnackbar: () => {},
+    };
   }
   return context;
 }

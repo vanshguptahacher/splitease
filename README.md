@@ -85,6 +85,10 @@ Supabase free-tier built-in email service is rate-limited (30 emails/hour). For 
 12. **Server-Side Split Engine (`compute_shares`)**: `supabase/migrations/20261003154000_compute_shares.sql`
 13. **Expenses Write RPCs (`add`, `edit`, `delete`, `restore`, locking)**: `supabase/migrations/20261003160000_expenses_write_rpcs.sql`
 14. **Expenses Read RPCs (`list_expenses`, `get_expense`, `list_activity`)**: `supabase/migrations/20261003161000_expenses_read_rpcs.sql`
+15. **Settlements Table & Activity Actions**: `supabase/migrations/20261003213000_settlements_table.sql`
+16. **Balance Engine RPCs (`compute_group_nets`, `compute_simplified_debts`, `get_group_balances`, `get_my_balance_summary`)**: `supabase/migrations/20261003214000_balance_engine.sql`
+17. **Settlements Lifecycle RPCs (`create`, `confirm`, `dispute`, `cancel`, `undo`, `list_settlements`)**: `supabase/migrations/20261003223000_settlements.sql`
+18. **Settlement Exit & Deletion Integrations**: `supabase/migrations/20261003223500_settlement_integrations.sql`
 
 To run database unit tests with pgTAP:
 ```bash
@@ -103,6 +107,18 @@ npx supabase test db
 - **Soft Delete & 8s Undo**: Deletion marks `deleted_at` and `deleted_by`, supported by an 8-second client UNDO snackbar calling `restore_expense`.
 - **Former Member Locking**: When any participant or the payer leaves a group, past expenses lock (`expense_locked`) to preserve ledger integrity.
 - **Activity Feed**: Keyset-paginated feed with human-readable event sentences (e.g. *"Rahul changed 'Dinner' ₹1,200 → ₹1,500 · Goa Trip · 2h ago"*).
+
+---
+
+## Balances & Settle-Up Engine (Phase 5)
+- **Exact Balance Math (Paise)**: Server calculates net balance per person as `paid - share + confirmed_sent - confirmed_received`. In every group, the sum of all nets is guaranteed to equal 0.
+- **Simplified Payments**: Server reduces pairwise debts to at most $N-1$ deterministic payments matching largest creditors with largest debtors.
+- **Settlement Lifecycle**:
+  - Payer records payment → `pending` → receiver confirms or disputes.
+  - Receiver records payment → confirmed immediately.
+  - 10-minute undo window (`confirmed_at + 10m`) for receivers.
+- **Exit & Deletion Guards**: Leaving a group, removing a member, deleting a group, or deleting an account is strictly blocked if any non-zero balance or `pending` settlement exists.
+- **Payment History**: Infinite scroll keyset list with status chips, detail sheet, and audit timestamps.
 
 
 ---

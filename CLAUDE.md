@@ -41,6 +41,15 @@ This file outlines the non-negotiable architectural rules, process constraints, 
     - **Former member expense locking:** Expenses referencing former or departed members are permanently locked (`expense_locked`) from edits, deletion, and restoration until the member rejoins.
     - **Soft delete & 8-second undo:** Deleting sets `deleted_at` and `deleted_by` with an 8-second UNDO snackbar calling `restore_expense`.
     - **Activity log transparency:** Every expense mutation writes an atomic entry to `activity_log` with before/after amounts and descriptions. Left groups never show up in activity.
+16. **Phase 5 Balance & Settlement Rules:**
+    - **Balance formula:** `net = (total expenses paid) - (total shares in expenses) + (confirmed payments sent) - (confirmed payments received)`. Only non-deleted expenses and `confirmed` settlements count. In every group, `sum(net_minor) = 0` always holds.
+    - **No client money math:** The server is the sole authority for net calculations, home overview summaries, and debt simplification. The app only formats text and numbers.
+    - **Zero direct table access:** Clients have NO privileges (`SELECT`, `INSERT`, `UPDATE`, `DELETE` revoked) on `settlements`. All interactions occur via `SECURITY DEFINER` RPCs.
+    - **Settlement lifecycle & authority:** Payer records "I paid" → status `pending` → receiver confirms or disputes ("not received"). If the receiver records "I received", it is confirmed immediately.
+    - **10-minute undo window:** Receiver only can undo a confirmed payment within 10 minutes (`confirmed_at + 10m`) provided both members are still in the group. Status reverts to `cancelled`.
+    - **Disputed payments do not block exit:** Only non-zero net balances or `pending` settlements block leaving a group, removing a member, deleting a group, or deleting an account. `disputed` payments do not alter balances and do NOT block.
+    - **Locking order:** Mutation RPCs acquire shared group lock (`for share`) → exclusive settlement lock (`for update`). Membership changes acquire exclusive group lock (`for update`), preventing race conditions.
+    - **Spam & uniqueness guards:** Partial unique index prevents duplicate pending payments with identical payer, receiver, and amount. Hard limit of 10 pending payments created per user per group.
 
 ---
 

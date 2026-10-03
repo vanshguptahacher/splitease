@@ -20,3 +20,4 @@ export * from './expenses/ExpenseList';
 export * from './activity/ActivityRow';
 export * from './activity/ActivityList';
 export * from './balances/GroupBalancesTab';
+export * from './balances/SettleUpSheet';

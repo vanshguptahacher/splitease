@@ -22,12 +22,14 @@ import {
   GroupBalancesTab,
   LoadingSkeleton,
   Screen,
+  SettleUpSheet,
   useSnackbar,
 } from '@/components';
 import {
   useAuth,
   useDeleteGroup,
   useGroup,
+  useGroupBalances,
   useGroupMembers,
   useLeaveGroup,
   useNetworkStatus,
@@ -50,10 +52,21 @@ export default function GroupDetailScreen() {
   const { showSnackbar } = useSnackbar();
   const { isOffline } = useNetworkStatus();
 
+  const validParamTab =
+    tab === 'expenses' || tab === 'balances' || tab === 'members' ? tab : undefined;
   const [userTab, setUserTab] = useState<TabKey | null>(null);
-  const activeTab: TabKey =
-    userTab ?? (tab === 'expenses' || tab === 'balances' || tab === 'members' ? tab : 'members');
+  const [prevParamTab, setPrevParamTab] = useState<TabKey | undefined>(validParamTab);
+
+  if (validParamTab !== prevParamTab) {
+    setPrevParamTab(validParamTab);
+    setUserTab(validParamTab ?? null);
+  }
+
+  const activeTab: TabKey = userTab ?? validParamTab ?? 'members';
   const setActiveTab = setUserTab;
+
+  const { data: groupBalances } = useGroupBalances(id);
+  const pendingForMe = groupBalances?.pending_for_me ?? 0;
 
   // Queries
   const {
@@ -87,6 +100,7 @@ export default function GroupDetailScreen() {
   const [selectedMember, setSelectedMember] = useState<GroupMemberItem | null>(null);
   const [isMemberActionVisible, setIsMemberActionVisible] = useState(false);
   const [isPromoteBeforeLeaveVisible, setIsPromoteBeforeLeaveVisible] = useState(false);
+  const [isRecordPaymentVisible, setIsRecordPaymentVisible] = useState(false);
 
   const isAdmin = group?.my_role === 'admin';
   const activeMembers = members.filter((m) => m.status === 'active');
@@ -212,7 +226,15 @@ export default function GroupDetailScreen() {
               });
               showSnackbar({ message: `${targetMember.name} removed from group` });
             } catch (err) {
-              showSnackbar({ message: toFriendlyMessage(err) });
+              const friendly = toFriendlyMessage(err);
+              if (String(err).includes('member_not_settled') || friendly.includes('Settle up')) {
+                Alert.alert('Settle up first', friendly, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Go to Balances', onPress: () => setActiveTab('balances') },
+                ]);
+              } else {
+                showSnackbar({ message: friendly });
+              }
             }
           },
         },
@@ -280,7 +302,16 @@ export default function GroupDetailScreen() {
       router.replace('/(tabs)');
     } catch (err) {
       const friendly = toFriendlyMessage(err);
-      if (friendly.includes('admin') || String(err).includes('last_admin')) {
+      if (
+        String(err).includes('member_not_settled') ||
+        String(err).includes('group_not_settled') ||
+        friendly.includes('Settle up')
+      ) {
+        Alert.alert('Settle up first', friendly, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Balances', onPress: () => setActiveTab('balances') },
+        ]);
+      } else if (friendly.includes('admin') || String(err).includes('last_admin')) {
         setIsPromoteBeforeLeaveVisible(true);
       } else {
         showSnackbar({ message: friendly });
@@ -304,7 +335,16 @@ export default function GroupDetailScreen() {
       setIsDeleteVisible(false);
       router.replace('/(tabs)');
     } catch (err) {
-      showSnackbar({ message: toFriendlyMessage(err) });
+      const friendly = toFriendlyMessage(err);
+      if (String(err).includes('group_not_settled') || friendly.includes('settle up')) {
+        setIsDeleteVisible(false);
+        Alert.alert('Settle up first', friendly, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Balances', onPress: () => setActiveTab('balances') },
+        ]);
+      } else {
+        showSnackbar({ message: friendly });
+      }
     }
   };
 
@@ -496,18 +536,42 @@ export default function GroupDetailScreen() {
                   accessibilityRole="tab"
                   accessibilityState={{ selected: isSelected }}
                 >
-                  <Text
-                    style={[
-                      theme.typography.body,
-                      {
-                        fontSize: 14,
-                        fontWeight: isSelected ? '700' : '500',
-                        color: isSelected ? theme.colors.primary : theme.colors.muted,
-                      },
-                    ]}
-                  >
-                    {label}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        {
+                          fontSize: 14,
+                          fontWeight: isSelected ? '700' : '500',
+                          color: isSelected ? theme.colors.primary : theme.colors.muted,
+                        },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                    {tab === 'balances' && pendingForMe > 0 && (
+                      <View
+                        style={[
+                          styles.tabBadge,
+                          { backgroundColor: theme.colors.secondaryContainer },
+                        ]}
+                        testID="balances-tab-pending-badge"
+                      >
+                        <Text
+                          style={[
+                            theme.typography.caption,
+                            {
+                              color: theme.colors.onSecondaryContainer,
+                              fontWeight: '700',
+                              fontSize: 10,
+                            },
+                          ]}
+                        >
+                          {pendingForMe}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </Pressable>
               );
             })}
@@ -541,16 +605,13 @@ export default function GroupDetailScreen() {
                 groupName={group?.name}
                 members={members}
                 currentUserId={user?.id}
-                onSettleUpPress={(payment) => {
-                  showSnackbar({
-                    message: `Settle up ₹${Math.floor(payment.amount_minor / 100)} with ${members.find((m) => m.user_id === payment.to_user)?.name || 'member'} (Sub-phase 5.6)`,
-                  });
-                }}
-                onMarkReceivedPress={(payment) => {
-                  showSnackbar({
-                    message: `Mark ₹${Math.floor(payment.amount_minor / 100)} as received (Sub-phase 5.6)`,
-                  });
-                }}
+                onRecordPaymentPress={() => setIsRecordPaymentVisible(true)}
+                onPaymentHistoryPress={() =>
+                  router.push({
+                    pathname: '/group/[id]/settlements' as any,
+                    params: { id: group?.id || id },
+                  })
+                }
               />
             )}
 
@@ -743,6 +804,35 @@ export default function GroupDetailScreen() {
                 </Pressable>
               </>
             )}
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+                setIsRecordPaymentVisible(true);
+              }}
+            >
+              <Ionicons name="card-outline" size={20} color={theme.colors.text} />
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                Record a payment
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+                router.push({
+                  pathname: '/group/[id]/settlements' as any,
+                  params: { id: group?.id || id },
+                });
+              }}
+            >
+              <Ionicons name="time-outline" size={20} color={theme.colors.text} />
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                Payment history
+              </Text>
+            </Pressable>
 
             <Pressable
               style={styles.menuItem}
@@ -1125,6 +1215,16 @@ export default function GroupDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Record Payment Sheet from Overflow Menu */}
+      <SettleUpSheet
+        visible={isRecordPaymentVisible}
+        onClose={() => setIsRecordPaymentVisible(false)}
+        groupId={group?.id || id}
+        members={members}
+        currentUserId={user?.id || ''}
+        mode="record_payment"
+      />
     </Screen>
   );
 }
@@ -1186,6 +1286,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
+  },
+  tabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginLeft: 6,
   },
   tabContentContainer: {
     flex: 1,

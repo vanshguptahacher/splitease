@@ -48,6 +48,15 @@ export function ActivityList({ onItemPress }: ActivityListProps) {
       return;
     }
 
+    // Settlement entries route to the group's Balances tab (Phase 5.7 Task 3)
+    if (item.action?.startsWith('settlement_')) {
+      router.push({
+        pathname: '/group/[id]' as any,
+        params: { id: item.group_id, tab: 'balances' },
+      });
+      return;
+    }
+
     // Default EV8 behavior:
     // Open expense if ref_id exists, otherwise open group
     if (item.ref_id) {

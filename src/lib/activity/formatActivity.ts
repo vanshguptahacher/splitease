@@ -33,7 +33,7 @@ export function formatTimeAgo(isoString: string, now: Date = new Date()): string
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-export type ActivityActionType = 'added' | 'edited' | 'deleted' | 'restored' | 'other';
+export type ActivityActionType = 'added' | 'edited' | 'deleted' | 'restored' | 'settlement' | 'other';
 
 export interface FormattedActivity {
   sentence: string;
@@ -45,14 +45,16 @@ export interface FormattedActivity {
   timeAgo: string;
   iconName: string;
   iconColorType: 'success' | 'primary' | 'danger' | 'warning' | 'muted';
+  primaryText: string;
 }
 
 /**
- * Formats an activity item per EV2, EV3, EV4, EV5 requirements:
+ * Formats an activity item per EV2, EV3, EV4, EV5, BG6 requirements:
  * - EV4: "You" for user's own actions
  * - EV5: "Deleted user" for deleted profiles
  * - EV3: Edit entries show amount change ("Rahul changed 'Dinner' ₹1,200 → ₹1,500")
  * - EV2: "Rahul added 'Dinner' ₹1,200 · Goa Trip · 2h ago"
+ * - BG6: Settlement entries ("Rahul paid Priya ₹300 · waiting for confirmation", "Priya confirmed ₹300 from Rahul", etc.)
  */
 export function formatActivitySentence(
   item: Pick<ActivityListItem, 'actor_id' | 'actor_name' | 'action' | 'details' | 'created_at'> & {
@@ -86,13 +88,77 @@ export function formatActivitySentence(
 
   const action = (item.action || '').toLowerCase();
 
-  // 1. Added
-  if (action === 'expense_added' || action.includes('added')) {
-    const parts = [
-      `${actor} added ${description}${amountText ? ` ${amountText}` : ''}`,
+  // Settlement Actions (BG6, Task 3)
+  if (action.startsWith('settlement_')) {
+    const fromUserId = typeof details.from_user === 'string' ? details.from_user : '';
+    const toUserId = typeof details.to_user === 'string' ? details.to_user : '';
+    const rawFromName = typeof details.from_name === 'string' ? details.from_name : '';
+    const rawToName = typeof details.to_name === 'string' ? details.to_name : '';
+
+    const fromName = fromUserId === currentUserId
+      ? 'You'
+      : (rawFromName || (fromUserId ? 'Deleted user' : 'Member'));
+    const toName = toUserId === currentUserId
+      ? 'you'
+      : (rawToName || (toUserId ? 'Deleted user' : 'Member'));
+
+    let actionClause = '';
+    let iconName = 'cash-outline';
+    let iconColorType: 'success' | 'primary' | 'danger' | 'warning' | 'muted' = 'primary';
+
+    if (action === 'settlement_created') {
+      if (details.status === 'confirmed') {
+        const subject = toUserId === currentUserId ? 'You' : toName;
+        const counterpart = fromUserId === currentUserId ? 'you' : fromName;
+        actionClause = `${subject} confirmed ${amountText} from ${counterpart}`;
+        iconName = 'checkmark-circle-outline';
+        iconColorType = 'success';
+      } else {
+        actionClause = `${fromName} paid ${toName} ${amountText} · waiting for confirmation`;
+        iconName = 'cash-outline';
+        iconColorType = 'warning';
+      }
+    } else if (action === 'settlement_confirmed') {
+      const subject = toUserId === currentUserId ? 'You' : toName;
+      const counterpart = fromUserId === currentUserId ? 'you' : fromName;
+      actionClause = `${subject} confirmed ${amountText} from ${counterpart}`;
+      iconName = 'checkmark-circle-outline';
+      iconColorType = 'success';
+    } else if (action === 'settlement_disputed') {
+      const subject = toUserId === currentUserId ? 'You' : toName;
+      const counterpart = fromUserId === currentUserId ? 'you' : fromName;
+      actionClause = `${subject} marked a payment from ${counterpart} as not received`;
+      iconName = 'alert-circle-outline';
+      iconColorType = 'warning';
+    } else if (action === 'settlement_cancelled') {
+      actionClause = `${actor} cancelled a payment${amountText ? ` of ${amountText}` : ''}`;
+      iconName = 'close-circle-outline';
+      iconColorType = 'muted';
+    } else {
+      actionClause = `${actor} updated a payment${amountText ? ` of ${amountText}` : ''}`;
+      iconName = 'information-circle-outline';
+      iconColorType = 'muted';
+    }
+
+    const parts = [actionClause, groupName, timeAgo];
+    return {
+      sentence: parts.join(' · '),
+      actor,
+      actionType: 'settlement',
+      description: '',
+      amountText,
       groupName,
       timeAgo,
-    ];
+      iconName,
+      iconColorType,
+      primaryText: actionClause,
+    };
+  }
+
+  // 1. Added
+  if (action === 'expense_added' || action.includes('added')) {
+    const actionClause = `${actor} added ${description}${amountText ? ` ${amountText}` : ''}`;
+    const parts = [actionClause, groupName, timeAgo];
     return {
       sentence: parts.join(' · '),
       actor,
@@ -103,6 +169,7 @@ export function formatActivitySentence(
       timeAgo,
       iconName: 'add-circle',
       iconColorType: 'success',
+      primaryText: actionClause,
     };
   }
 
@@ -128,16 +195,14 @@ export function formatActivitySentence(
       timeAgo,
       iconName: 'create-outline',
       iconColorType: 'primary',
+      primaryText: actionClause,
     };
   }
 
   // 3. Deleted
   if (action === 'expense_deleted' || action.includes('deleted')) {
-    const parts = [
-      `${actor} deleted ${description}${amountText ? ` ${amountText}` : ''}`,
-      groupName,
-      timeAgo,
-    ];
+    const actionClause = `${actor} deleted ${description}${amountText ? ` ${amountText}` : ''}`;
+    const parts = [actionClause, groupName, timeAgo];
     return {
       sentence: parts.join(' · '),
       actor,
@@ -148,16 +213,14 @@ export function formatActivitySentence(
       timeAgo,
       iconName: 'trash-outline',
       iconColorType: 'danger',
+      primaryText: actionClause,
     };
   }
 
   // 4. Restored
   if (action === 'expense_restored' || action.includes('restored')) {
-    const parts = [
-      `${actor} restored ${description}${amountText ? ` ${amountText}` : ''}`,
-      groupName,
-      timeAgo,
-    ];
+    const actionClause = `${actor} restored ${description}${amountText ? ` ${amountText}` : ''}`;
+    const parts = [actionClause, groupName, timeAgo];
     return {
       sentence: parts.join(' · '),
       actor,
@@ -168,12 +231,14 @@ export function formatActivitySentence(
       timeAgo,
       iconName: 'refresh-outline',
       iconColorType: 'success',
+      primaryText: actionClause,
     };
   }
 
   // Fallback
+  const fallbackClause = `${actor} updated ${groupName}`;
   return {
-    sentence: `${actor} updated ${groupName} · ${timeAgo}`,
+    sentence: `${fallbackClause} · ${timeAgo}`,
     actor,
     actionType: 'other',
     description,
@@ -182,5 +247,6 @@ export function formatActivitySentence(
     timeAgo,
     iconName: 'information-circle-outline',
     iconColorType: 'muted',
+    primaryText: fallbackClause,
   };
 }
