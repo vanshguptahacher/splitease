@@ -196,6 +196,173 @@ export interface Database {
         };
         Relationships: [];
       };
+      expenses: {
+        Row: {
+          id: string;
+          group_id: string;
+          description: string | null;
+          amount_minor: number;
+          currency: string;
+          paid_by: string;
+          split_type: 'equal' | 'exact' | 'percent';
+          category: ExpenseCategory | null;
+          expense_date: string;
+          created_by: string;
+          client_request_id: string | null;
+          version: number;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+          deleted_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          description?: string | null;
+          amount_minor: number;
+          currency?: string;
+          paid_by: string;
+          split_type: 'equal' | 'exact' | 'percent';
+          category?: ExpenseCategory | null;
+          expense_date: string;
+          created_by: string;
+          client_request_id?: string | null;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          description?: string | null;
+          amount_minor?: number;
+          currency?: string;
+          paid_by?: string;
+          split_type?: 'equal' | 'exact' | 'percent';
+          category?: ExpenseCategory | null;
+          expense_date?: string;
+          created_by?: string;
+          client_request_id?: string | null;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expenses_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expenses_paid_by_fkey';
+            columns: ['paid_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expenses_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expenses_deleted_by_fkey';
+            columns: ['deleted_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      expense_splits: {
+        Row: {
+          expense_id: string;
+          user_id: string;
+          share_minor: number;
+          percent_bp: number | null;
+        };
+        Insert: {
+          expense_id: string;
+          user_id: string;
+          share_minor: number;
+          percent_bp?: number | null;
+        };
+        Update: {
+          expense_id?: string;
+          user_id?: string;
+          share_minor?: number;
+          percent_bp?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expense_splits_expense_id_fkey';
+            columns: ['expense_id'];
+            isOneToOne: false;
+            referencedRelation: 'expenses';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expense_splits_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      activity_log: {
+        Row: {
+          id: number;
+          group_id: string;
+          actor_id: string;
+          action: ActivityAction;
+          ref_id: string | null;
+          details: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: never;
+          group_id: string;
+          actor_id: string;
+          action: ActivityAction;
+          ref_id?: string | null;
+          details?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          group_id?: string;
+          actor_id?: string;
+          action?: ActivityAction;
+          ref_id?: string | null;
+          details?: Json;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'activity_log_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_log_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -255,6 +422,7 @@ export interface Database {
           my_role: 'admin' | 'member';
           member_count: number;
           joined_at: string;
+          last_activity_at: string;
         }[];
       };
       get_group: {
@@ -374,6 +542,112 @@ export interface Database {
           }[];
         };
       };
+      add_expense: {
+        Args: {
+          p_group: string;
+          p_client_request_id: string | null;
+          p_description: string | null;
+          p_amount_minor: number;
+          p_paid_by: string;
+          p_split_type: 'equal' | 'exact' | 'percent';
+          p_participants: Json;
+          p_category: string | null;
+          p_expense_date: string;
+        };
+        Returns: string;
+      };
+      edit_expense: {
+        Args: {
+          p_expense: string;
+          p_expected_version: number;
+          p_description: string | null;
+          p_amount_minor: number;
+          p_paid_by: string;
+          p_split_type: 'equal' | 'exact' | 'percent';
+          p_participants: Json;
+          p_category: string | null;
+          p_expense_date: string;
+        };
+        Returns: number;
+      };
+      delete_expense: {
+        Args: {
+          p_expense: string;
+        };
+        Returns: void;
+      };
+      restore_expense: {
+        Args: {
+          p_expense: string;
+        };
+        Returns: void;
+      };
+      list_expenses: {
+        Args: {
+          p_group: string;
+          p_limit?: number;
+          p_cursor?: Json | null;
+        };
+        Returns: {
+          id: string;
+          description: string | null;
+          category: string | null;
+          amount_minor: number;
+          paid_by: string;
+          expense_date: string;
+          created_by: string;
+          created_at: string;
+          version: number;
+          participant_count: number;
+          my_share_minor: number;
+          my_net_minor: number;
+          is_locked: boolean;
+          can_edit: boolean;
+          next_cursor: Json;
+        }[];
+      };
+      get_expense: {
+        Args: {
+          p_expense: string;
+        };
+        Returns: {
+          expense: Database['public']['Tables']['expenses']['Row'];
+          splits: {
+            user_id: string;
+            share_minor: number;
+            percent_bp: number | null;
+          }[];
+          is_locked: boolean;
+          can_edit: boolean;
+          can_restore: boolean;
+          activity: {
+            id: number;
+            action: string;
+            actor_id: string;
+            actor_name: string;
+            details: Json;
+            created_at: string;
+          }[];
+        };
+      };
+      list_activity: {
+        Args: {
+          p_limit?: number;
+          p_cursor?: Json | null;
+        };
+        Returns: {
+          id: number;
+          group_id: string;
+          group_name: string;
+          actor_id: string;
+          actor_name: string;
+          action: string;
+          ref_id: string | null;
+          details: Json;
+          created_at: string;
+          next_cursor: Json;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -402,4 +676,26 @@ export type InviteStatus = 'ok' | 'invalid' | 'revoked' | 'expired' | 'already_m
 export type JoinStatus = 'joined' | 'already_member' | 'removed' | 'group_full' | 'too_many_groups' | 'invalid' | 'revoked' | 'expired' | 'rate_limited';
 export type AccountDeletionBlockers = Database['public']['Functions']['account_deletion_blockers']['Returns'];
 export type LeaveGroupResult = Database['public']['Functions']['leave_group']['Returns'];
+
+export type Expense = Database['public']['Tables']['expenses']['Row'];
+export type ExpenseSplit = Database['public']['Tables']['expense_splits']['Row'];
+export type ActivityLog = Database['public']['Tables']['activity_log']['Row'];
+export type SplitType = 'equal' | 'exact' | 'percent';
+export type ExpenseCategory =
+  | 'food'
+  | 'groceries'
+  | 'travel'
+  | 'stay'
+  | 'fuel'
+  | 'shopping'
+  | 'bills'
+  | 'entertainment'
+  | 'rent'
+  | 'other';
+export type ActivityAction =
+  | 'expense_added'
+  | 'expense_edited'
+  | 'expense_deleted'
+  | 'expense_restored';
+
 

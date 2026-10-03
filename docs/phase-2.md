@@ -32,7 +32,7 @@
 | # | Decision | Recommendation |
 |---|----------|----------------|
 | D1 | Email login method | **Email one-time code (OTP), no passwords.** Fewer screens, no "forgot password" flow, fewer cases. (Alternative: email + password, which adds reset-password flows and about 10 more cases.) |
-| D2 | What happens to a user's data when they delete their account | **Anonymize, don't erase the ledger.** Personal data is removed (name, photo, UPI ID, login). Their past expenses stay in other people's groups under the name "Deleted user", so everyone else's balances remain correct. This must be written in the privacy policy (Phase 9). |
+| D2 | What happens to a user's data when they delete their account | **Smart delete of the profile row.** If nothing references the profile, hard delete the row. If other tables reference it (foreign key), keep the row but anonymize it (name 'Deleted user', avatar_path/avatar_url/upi_id null, deleted_at = now()) so other people's history stays correct. Then delete the auth user. Deletion is blocked if the user is a sole admin of groups with members or has unsettled balances. This must be written in the privacy policy (Phase 9). |
 | D3 | Members **without the app** (e.g. elders who only appear by name in a group) | **Decide before Phase 3 starts, because it changes the database schema.** Recommendation: **v2.** For v1 such people can join using email code in under a minute. |
 | D4 | Email delivery | Supabase's built-in email sender is heavily rate-limited and meant for testing. **Set up a custom SMTP provider (a free-tier transactional email service) before the family beta.** |
 
@@ -176,12 +176,12 @@ Welcome screen
 | F1 | Open Delete account | Screen explains what is deleted (name, photo, UPI ID, login) and what stays (past expenses shown as "Deleted user") |
 | F2 | Confirm identity | User must sign in again (Google or email code) inside this flow |
 | F3 | Final confirmation | User types `DELETE` to enable the button |
-| F4 | Deletion runs | Avatar files removed → `delete_my_account()` → profile anonymized and login removed → local session cleared → goodbye screen |
+| F4 | Deletion runs | Preflight blockers re-check → avatar files removed → `delete_my_account()` (smart delete: hard delete profile if unreferenced, anonymize if referenced by FK, delete auth user) → local session cleared → goodbye screen. If deletion fails after avatar removal, `avatar_path` is reset to null. |
 | F5 | Network fails mid-way | Safe to retry; nothing half-deleted is left in a broken state |
-| F6 | Same email signs up again later | Gets a **brand new** account with none of the old data |
-| F7 | *(Phase 3 hook)* User is the only admin of a group that has other members | Deletion blocked: "Make someone else admin or delete the group first" |
-| F8 | *(Phase 3/5 hook)* User has unsettled balances | Warning listing groups and amounts; allowed after explicit confirmation; others see "Deleted user" |
-| F9 | Other members' view of a deleted user | Name "Deleted user", no photo, no UPI ID; history and balances unchanged |
+| F6 | Same email signs up again later | Gets a **brand new** account with a fresh profile row and none of the old data |
+| F7 | *(Phase 3 hook)* User is the only admin of a group that has other members | Deletion blocked (`sole_admin`): "You're the only admin of a group with other members. Make someone else admin or delete the group first." |
+| F8 | *(Phase 3/5 hook)* User has unsettled balances | Deletion is **blocked** (`unsettled_balances`): "Settle up with your groups first, then you can delete your account." No force parameter or delete anyway option. |
+| F9 | Other members' view of a deleted user | If anonymized due to references: name "Deleted user", no photo, no UPI ID; history and balances unchanged |
 | F10 | *(Phase 9)* Deletion request from the Play Store web link | Same outcome through a public web page |
 
 ### G. Security and abuse
@@ -392,23 +392,25 @@ Welcome screen
 **Tasks**
 1. **Logout:** Account → Logout → `signOutAndReset()` from 2.3. No confirmation dialog needed (it is easy to sign in again). Works offline (E2). Cancel any running upload (E3).
 2. **Delete account flow** (screens: explain → re-authenticate → type DELETE → progress → goodbye):
-   1. Explain screen (F1): what is removed, what stays as "Deleted user", and that it cannot be undone.
+   1. Explain screen (F1): check `account_deletion_blockers()` first. If `sole_admin_groups` or `unsettled_groups` are non-empty, show blocked state with group names and disabled delete button. If clear, explain what is removed, what stays as "Deleted user" (if referenced), and that it cannot be undone.
    2. Re-authenticate inside the flow with the same method the user signed in with (F2).
    3. Type `DELETE` to enable the final button (F3).
    4. Run, in this order (F4, F5):
+      - re-check `account_deletion_blockers()` before irreversible file removal
       - delete the user's avatar files from storage (ignore "not found")
-      - call `delete_my_account()`
+      - call `delete_my_account()` (smart delete: hard delete if unreferenced, anonymize if referenced by foreign keys; then delete auth user)
+      - if `delete_my_account()` fails after avatar removal, update `avatar_path = null` on profile as fallback
       - sign out locally with `scope: 'local'`, because the server session no longer exists
       - clear caches and saved data
       - show the goodbye screen
    5. If a step fails, show Retry. Every step must be safe to repeat (F5).
 3. **Verify** that `delete_my_account()` really removes the login. Deleting from `auth.users` inside a database function is a common pattern but is not an official API. **If it fails in your project, stop and report.** The fallback is a small Supabase Edge Function that uses the admin API (this is the only case where Phase 2 may add an Edge Function, and only with approval).
-4. Add the **hook point** inside `delete_my_account()` as a clearly marked comment for Phase 3 and 5 checks (F7: only admin of a group with other members; F8: unsettled balances).
+4. Add `account_deletion_blockers()` RPC and call it inside `delete_my_account()` before deletion. Add marked hook comment for Phase 3 ("PHASE 3 HOOK: leave all groups / delete groups where user is the only member").
 5. After a deletion, sign up again with the same email and confirm it creates a fresh account with no old data (F6).
 
 **Acceptance**
-- E1 to E3 and F1 to F6 tested; F9 can be checked in Phase 3
-- In the dashboard: the auth user is gone, the profile row is anonymized (`Deleted user`, empty photo/UPI, `deleted_at` set)
+- E1 to E3 and F1 to F6 tested; F7/F8 blockers and F9 can be checked in Phase 3/5
+- In the dashboard: the auth user is gone; the profile row is hard deleted if unreferenced, or anonymized (`Deleted user`, empty photo/UPI, `deleted_at` set) if referenced by foreign keys
 - The deleted account's avatar files are gone from storage
 
 **STOP.** Report results and the exact verification of what remains in the database.
@@ -588,8 +590,8 @@ begin
 end;
 $$;
 
-create or replace function public.delete_my_account()
-returns void
+create or replace function public.account_deletion_blockers()
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -601,26 +603,71 @@ begin
     raise exception 'not_authenticated' using errcode = '28000';
   end if;
 
-  -- >>> PHASE 3 / 5 HOOK: add checks here <<<
-  --   F7: block if the user is the only admin of a group that has other members
-  --   F8: report or require confirmation for unsettled balances
+  -- STUB - replaced in Phase 3.4 for sole_admin_groups and Phase 5 for unsettled_groups.
+  -- Phase 5 unsettled definition: net balance != 0 in the group OR user has pending/disputed settlement.
+  return jsonb_build_object(
+    'sole_admin_groups', '[]'::jsonb,
+    'unsettled_groups', '[]'::jsonb
+  );
+end;
+$$;
 
-  update public.profiles
-     set name = 'Deleted user',
-         avatar_path = null,
-         avatar_url = null,
-         upi_id = null,
-         deleted_at = now()
-   where id = v_uid;
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_blockers jsonb;
+begin
+  -- 1. auth check
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
 
+  -- 2. blocker checks
+  v_blockers := public.account_deletion_blockers();
+
+  if jsonb_array_length(v_blockers->'sole_admin_groups') > 0 then
+    raise exception 'sole_admin' using errcode = 'P0001';
+  end if;
+
+  if jsonb_array_length(v_blockers->'unsettled_groups') > 0 then
+    raise exception 'unsettled_balances' using errcode = 'P0001';
+  end if;
+
+  -- 3. PHASE 3 HOOK: leave all groups / delete groups where user is the only member
+
+  -- 4. SMART DELETE of the profile row:
+  -- If nothing references the profile, hard delete the row.
+  -- If other tables reference it (foreign key), keep the row but anonymize it.
+  begin
+    delete from public.profiles where id = v_uid;
+  exception
+    when foreign_key_violation then
+      update public.profiles
+         set name = 'Deleted user',
+             avatar_path = null,
+             avatar_url = null,
+             upi_id = null,
+             deleted_at = now()
+       where id = v_uid;
+  end;
+
+  -- 5. delete auth user
   delete from auth.users where id = v_uid;
 end;
 $$;
 
-revoke execute on function public.ensure_my_profile()  from public, anon;
-revoke execute on function public.delete_my_account()  from public, anon;
-grant  execute on function public.ensure_my_profile()  to authenticated;
-grant  execute on function public.delete_my_account()  to authenticated;
+revoke execute on function public.ensure_my_profile()          from public, anon;
+revoke execute on function public.account_deletion_blockers()  from public, anon;
+revoke execute on function public.delete_my_account()          from public, anon;
+
+grant  execute on function public.ensure_my_profile()          to authenticated;
+grant  execute on function public.account_deletion_blockers()  to authenticated;
+grant  execute on function public.delete_my_account()          to authenticated;
 ```
 
 ### 6.4 Avatar storage

@@ -16,20 +16,26 @@ import {
   AppHeader,
   EmptyState,
   ErrorState,
+  GroupPickerModal,
   LoadingSkeleton,
   OfflineBanner,
   Screen,
+  useSnackbar,
 } from '@/components';
-import { useGroups, useNetworkStatus } from '@/hooks';
+import { useAuth, useGroups, useNetworkStatus } from '@/hooks';
 import { toFriendlyMessage } from '@/lib/errors';
+import { formatTimeAgo } from '@/lib/activity/formatActivity';
 import { useAppTheme } from '@/lib/theme';
 import { GroupSummary } from '@/types/database';
 
 export default function GroupsTabScreen() {
   const theme = useAppTheme();
+  const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const { isOffline } = useNetworkStatus();
   const { data: groups, isLoading, isError, error, refetch, isRefetching } = useGroups();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [groupPickerVisible, setGroupPickerVisible] = useState(false);
 
   // Refetch when tab comes into focus (GN2)
   useFocusEffect(
@@ -37,6 +43,22 @@ export default function GroupsTabScreen() {
       refetch();
     }, [refetch])
   );
+
+  const openAddExpense = () => {
+    setSheetVisible(false);
+    if (!groups || groups.length === 0) {
+      showSnackbar({ message: 'Create or join a group first before adding an expense.' });
+      return;
+    }
+    if (groups.length === 1) {
+      router.push({
+        pathname: '/group/[id]/add-expense',
+        params: { id: groups[0].group_id },
+      });
+      return;
+    }
+    setGroupPickerVisible(true);
+  };
 
   const openNewGroup = () => {
     setSheetVisible(false);
@@ -143,6 +165,7 @@ export default function GroupsTabScreen() {
               ]}
             >
               {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
+              {item.last_activity_at ? ` · Active ${formatTimeAgo(item.last_activity_at)}` : ''}
             </Text>
           </View>
 
@@ -296,6 +319,55 @@ export default function GroupsTabScreen() {
                   marginBottom: theme.spacing.md,
                 },
               ]}
+              onPress={openAddExpense}
+            >
+              <View
+                style={[
+                  styles.sheetIconCircle,
+                  { backgroundColor: theme.colors.primaryContainer },
+                ]}
+              >
+                <Ionicons
+                  name="receipt-outline"
+                  size={22}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <View style={styles.sheetOptionText}>
+                <Text
+                  style={[
+                    theme.typography.body,
+                    { color: theme.colors.text, fontWeight: '700' },
+                  ]}
+                >
+                  Add Expense
+                </Text>
+                <Text
+                  style={[
+                    theme.typography.caption,
+                    { color: theme.colors.muted, marginTop: 2 },
+                  ]}
+                >
+                  Split an expense with a group
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={theme.colors.muted}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sheetOption,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: theme.radius.card,
+                  padding: theme.spacing.md,
+                  marginBottom: theme.spacing.md,
+                },
+              ]}
               onPress={openNewGroup}
             >
               <View
@@ -393,6 +465,14 @@ export default function GroupsTabScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Quick Add Group Picker Modal */}
+      <GroupPickerModal
+        visible={groupPickerVisible}
+        onClose={() => setGroupPickerVisible(false)}
+        groups={groups ?? []}
+        currentUserId={user?.id}
+      />
     </Screen>
   );
 }

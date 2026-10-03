@@ -18,6 +18,7 @@ import {
   AppHeader,
   Avatar,
   ErrorState,
+  ExpenseList,
   LoadingSkeleton,
   Screen,
   useSnackbar,
@@ -67,7 +68,7 @@ export default function GroupDetailScreen() {
     isLoading: isMembersLoading,
     isRefetching: isMembersRefetching,
     refetch: refetchMembers,
-  } = useGroupMembers(id);
+  } = useGroupMembers(id, true);
 
   // Mutations
   const renameGroupMutation = useRenameGroup();
@@ -514,30 +515,23 @@ export default function GroupDetailScreen() {
           {/* Tab Content */}
           <View style={styles.tabContentContainer}>
             {activeTab === 'expenses' && (
-              <View style={[styles.placeholderCard, { padding: theme.spacing.xl }]}>
-                <Ionicons
-                  name="receipt-outline"
-                  size={52}
-                  color={theme.colors.muted}
-                  style={{ marginBottom: 12 }}
-                />
-                <Text
-                  style={[
-                    theme.typography.sectionTitle,
-                    { color: theme.colors.text, marginBottom: 8, textAlign: 'center' },
-                  ]}
-                >
-                  Expenses Coming in Phase 4
-                </Text>
-                <Text
-                  style={[
-                    theme.typography.body,
-                    { color: theme.colors.muted, textAlign: 'center', maxWidth: 300 },
-                  ]}
-                >
-                  Add shared bills, split equally or unequally, attach notes, and track who paid.
-                </Text>
-              </View>
+              <ExpenseList
+                groupId={group?.id || id}
+                members={members}
+                currentUserId={user?.id ?? ''}
+                onAddExpense={() =>
+                  router.push({
+                    pathname: '/group/[id]/add-expense',
+                    params: { id: group?.id || id },
+                  })
+                }
+                onExpensePress={(expense) =>
+                  router.push({
+                    pathname: '/group/[id]/expense/[expenseId]' as any,
+                    params: { id: group?.id || id, expenseId: expense.id },
+                  })
+                }
+              />
             )}
 
             {activeTab === 'balances' && (

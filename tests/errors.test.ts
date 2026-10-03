@@ -128,10 +128,10 @@ describe('toFriendlyMessage', () => {
       'Everyone needs to settle up before the group can be deleted.'
     );
     expect(toFriendlyMessage(new Error('sole_admin'))).toBe(
-      "You're the only admin of a group that has other members. Make someone admin or delete the group first."
+      "You're the only admin of a group with other members. Make someone else admin or delete the group first."
     );
     expect(toFriendlyMessage(new Error('unsettled_balances'))).toBe(
-      'You have unsettled balances. Delete anyway?'
+      'Settle up with your groups first, then you can delete your account.'
     );
     expect(toFriendlyMessage(new Error('invalid_role'))).toBe(
       'Something went wrong. Please try again.'

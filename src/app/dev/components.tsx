@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  AmountDisplay,
+  AmountKeypad,
   AppButton,
   AppHeader,
   EmptyState,
@@ -19,6 +21,7 @@ export default function ComponentShowcaseScreen() {
   const [btnLoading, setBtnLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [shouldCrash, setShouldCrash] = useState(false);
+  const [keypadAmount, setKeypadAmount] = useState('');
 
   // Dev-only screen safety check
   if (!__DEV__) {
@@ -236,6 +239,28 @@ export default function ComponentShowcaseScreen() {
               icon="bug-outline"
               onPress={() => setShouldCrash(true)}
               fullWidth
+            />
+          </View>
+        </View>
+
+        {/* Section 8: Expenses Foundations (AmountKeypad, AmountDisplay, Categories) */}
+        <View style={styles.section}>
+          <Text style={[theme.typography.sectionTitle, { color: theme.colors.text }]}>
+            8. Expenses Foundations (Keypad & Display)
+          </Text>
+          <Text style={[theme.typography.caption, { color: theme.colors.muted, marginBottom: theme.spacing.md }]}>
+            Live keypad entry with Indian grouping (EM1), 2-decimal limit (EM2), 1-crore max (EM5), and long-press clear (EM7).
+          </Text>
+
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+            <AmountDisplay amountText={keypadAmount} />
+            <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
+            <AmountKeypad
+              value={keypadAmount}
+              onChange={setKeypadAmount}
+              onExceedMax={() =>
+                showSnackbar({ message: 'Enter an amount between ₹0.01 and ₹1,00,00,000.' })
+              }
             />
           </View>
         </View>

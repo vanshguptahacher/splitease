@@ -173,7 +173,7 @@ Backend: Supabase PostgreSQL (Local + Remote synced)
 | GD1 | Sole admin tries to delete account | Preflight lists groups; deletion blocked | ✅ PASS | Blocker card lists groups with "Make someone admin" button; verified in `deleteAccountUi.test.tsx`. |
 | GD2 | User is only active member | Group deleted automatically with account | ✅ PASS | Verified in SQL test suite and confirmed live. |
 | GD3 | Groups with other members | User membership marked `left` | ✅ PASS | Membership updated to `status = 'left'`, `role = 'member'`. |
-| GD4 | Unsettled balances confirmation | Requires confirmation; passes `p_force: true` | ✅ PASS | Checkbox required before continuing; verified in UI test suite. |
+| GD4 | Unsettled balances | Unsettled balances strictly block deletion (`unsettled_balances`) | ✅ PASS | Blocked card displayed with "Settle up with your groups first, then you can delete your account." and disabled delete button; verified in `deleteAccountUi.test.tsx` and SQL suite. |
 | GD5 | Preflight timing | Runs before irreversible actions | ✅ PASS | `useAccountDeletionBlockers` runs on Explain screen before any delete step. |
 | GD6 | Deleted user appearance | Displayed as "Deleted user", no photo, no UPI | ✅ PASS | Profile row anonymized, avatar/UPI cleared. |
 

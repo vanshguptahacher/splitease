@@ -90,6 +90,17 @@ function RootNavigator() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="group/[id]/expense/[expenseId]/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="group/[id]/expense/[expenseId]/edit"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
         <Stack.Screen name="account/delete" options={{ headerShown: false }} />
         <Stack.Screen name="dev/components" options={{ headerShown: false }} />
       </Stack.Protected>

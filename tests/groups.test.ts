@@ -227,11 +227,11 @@ describe('Groups API Layer (Sub-phase 3.5)', () => {
     expect(result).toEqual(mockBlockers);
   });
 
-  it('deleteMyAccount calls delete_my_account RPC with force parameter', async () => {
+  it('deleteMyAccount calls delete_my_account RPC without parameters', async () => {
     (supabase.rpc as jest.Mock).mockResolvedValueOnce({ error: null });
 
-    await deleteMyAccount(true);
-    expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account', { p_force: true });
+    await deleteMyAccount();
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account');
   });
 
   it('never uses direct table writes (.insert, .update, .delete) on groups or group_members', () => {

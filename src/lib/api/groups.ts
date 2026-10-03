@@ -185,12 +185,8 @@ export async function getAccountDeletionBlockers(): Promise<AccountDeletionBlock
   return data as AccountDeletionBlockers;
 }
 
-export async function deleteMyAccount(
-  force = false
-): Promise<void> {
-  const { error } = await supabase.rpc('delete_my_account', {
-    p_force: force,
-  });
-
+export async function deleteMyAccount(): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_account');
   if (error) throw error;
 }
+

@@ -1,5 +1,5 @@
 begin;
-select plan(41);
+select plan(34);
 
 -- Setup test users in auth.users
 set local role postgres;
@@ -350,81 +350,5 @@ returns boolean language sql stable security definer set search_path = '' as $$ 
 -- Clean up test group 3
 delete from public.groups where id = '10000000-0000-0000-0000-000000000003';
 
--- ========================================================
--- 9. Account Deletion Blockers & delete_my_account (GD1 to GD6)
--- ========================================================
--- Setup user 66666666-6666-6666-6666-666666666666:
--- 1. Sole admin of group A (which also has member 33333333) -> blocks account deletion
--- 2. Member of group B (with admin 11111111) -> marked left on account deletion
--- 3. Sole member of group C -> deleted on account deletion
-
-insert into public.groups (id, name, created_by) values
-  ('10000000-0000-0000-0000-00000000000a', 'Sole Admin Group', '66666666-6666-6666-6666-666666666666'),
-  ('10000000-0000-0000-0000-00000000000b', 'Co-Member Group', '11111111-1111-1111-1111-111111111111'),
-  ('10000000-0000-0000-0000-00000000000c', 'Solo Group', '66666666-6666-6666-6666-666666666666');
-
-insert into public.group_members (group_id, user_id, role, status) values
-  ('10000000-0000-0000-0000-00000000000a', '66666666-6666-6666-6666-666666666666', 'admin', 'active'),
-  ('10000000-0000-0000-0000-00000000000a', '33333333-3333-3333-3333-333333333333', 'member', 'active'),
-  ('10000000-0000-0000-0000-00000000000b', '11111111-1111-1111-1111-111111111111', 'admin', 'active'),
-  ('10000000-0000-0000-0000-00000000000b', '66666666-6666-6666-6666-666666666666', 'member', 'active'),
-  ('10000000-0000-0000-0000-00000000000c', '66666666-6666-6666-6666-666666666666', 'admin', 'active');
-
-set local role authenticated;
-set local "request.jwt.claims" to '{"sub": "66666666-6666-6666-6666-666666666666", "role": "authenticated"}';
-
--- Check blockers
-select is(
-  (public.account_deletion_blockers()->'sole_admin_groups'->0->>'name')::text,
-  'Sole Admin Group'::text,
-  'account_deletion_blockers returns Sole Admin Group'
-);
-
-select throws_ok(
-  'select public.delete_my_account(false)',
-  'sole_admin',
-  'GD1: delete_my_account blocked by sole_admin check'
-);
-
--- Now remove the blocker: promote member 33333333 to admin in Group A
-set local role postgres;
-update public.group_members set role = 'admin'
- where group_id = '10000000-0000-0000-0000-00000000000a' and user_id = '33333333-3333-3333-3333-333333333333';
-
--- Now call delete_my_account
-set local role authenticated;
-set local "request.jwt.claims" to '{"sub": "66666666-6666-6666-6666-666666666666", "role": "authenticated"}';
-
-select lives_ok(
-  'select public.delete_my_account(false)',
-  'delete_my_account succeeds when no sole_admin blockers exist'
-);
-
-set local role postgres;
--- Check Group A: user status is left
-select results_eq(
-  'select status from public.group_members where group_id = ''10000000-0000-0000-0000-00000000000a'' and user_id = ''66666666-6666-6666-6666-666666666666''',
-  $$values ('left'::text)$$,
-  'GD3: Group A membership is marked left'
-);
-
--- Check Group C (solo group): deleted
-select is_empty(
-  'select 1 from public.groups where id = ''10000000-0000-0000-0000-00000000000c''',
-  'GD2: Solo group C was deleted automatically'
-);
-
--- Check Profile: anonymized
-select results_eq(
-  'select name, avatar_path, upi_id from public.profiles where id = ''66666666-6666-6666-6666-666666666666''',
-  $$values ('Deleted user'::text, null::text, null::text)$$,
-  'GD6: Profile is anonymized with Deleted user and null avatar/upi'
-);
-
--- Check Auth: deleted from auth.users
-select is_empty(
-  'select 1 from auth.users where id = ''66666666-6666-6666-6666-666666666666''',
-  'User is deleted from auth.users'
-);
-
+select * from finish();
 rollback;

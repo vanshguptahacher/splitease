@@ -177,7 +177,7 @@ describe('Group Detail UI (Sub-phase 3.7, Cases GI, GR, GM, GE, GN)', () => {
       // Switch to Expenses
       fireEvent.press(getByTestId('tab-expenses'));
       await waitFor(() => {
-        expect(getByText('Expenses Coming in Phase 4')).toBeTruthy();
+        expect(getByText('No expenses yet. Add the first one.')).toBeTruthy();
       });
 
       // Switch to Balances

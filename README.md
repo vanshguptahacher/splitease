@@ -79,11 +79,31 @@ Supabase free-tier built-in email service is rate-limited (30 emails/hour). For 
 6. **Core Group RPCs**: `supabase/migrations/20261002232500_group_core_rpcs.sql`
 7. **Group Invites & Join RPCs**: `supabase/migrations/20261002233500_group_invite_rpcs.sql`
 8. **Member, Role & Deletion RPCs**: `supabase/migrations/20261002234500_group_member_and_role_rpcs.sql`
+9. **Finalize Account Deletion**: `supabase/migrations/20261003100000_finalize_account_deletion.sql`
+10. **Expenses Tables, Constraints & Activity Log**: `supabase/migrations/20261003153000_expenses_tables.sql`
+11. **Split Sum Deferred Constraint Trigger**: `supabase/migrations/20261003153100_expense_split_sum_trigger.sql`
+12. **Server-Side Split Engine (`compute_shares`)**: `supabase/migrations/20261003154000_compute_shares.sql`
+13. **Expenses Write RPCs (`add`, `edit`, `delete`, `restore`, locking)**: `supabase/migrations/20261003160000_expenses_write_rpcs.sql`
+14. **Expenses Read RPCs (`list_expenses`, `get_expense`, `list_activity`)**: `supabase/migrations/20261003161000_expenses_read_rpcs.sql`
 
 To run database unit tests with pgTAP:
 ```bash
 npx supabase test db
 ```
+
+---
+
+## Expenses & Split Engine (Phase 4)
+- **Zero Floating-Point Math**: All amounts are represented strictly as integer paise (`bigint` in PostgreSQL).
+- **Split Modes**:
+  - **Equal**: Divides evenly with remainder paise allocated deterministically to the payer.
+  - **Exact**: User assigns specific paise amounts with a live "Split the rest equally" assistant.
+  - **Percent**: Precise basis points (0.01% = 1 bp, total = 10,000 bp).
+- **Concurrency & Locking**: Shared group lock (`for share`) followed by exclusive expense lock (`for update`). Stale edits throw `expense_changed`.
+- **Soft Delete & 8s Undo**: Deletion marks `deleted_at` and `deleted_by`, supported by an 8-second client UNDO snackbar calling `restore_expense`.
+- **Former Member Locking**: When any participant or the payer leaves a group, past expenses lock (`expense_locked`) to preserve ledger integrity.
+- **Activity Feed**: Keyset-paginated feed with human-readable event sentences (e.g. *"Rahul changed 'Dinner' ₹1,200 → ₹1,500 · Goa Trip · 2h ago"*).
+
 
 ---
 

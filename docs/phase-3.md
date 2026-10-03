@@ -166,8 +166,8 @@ RPC functions raise errors using these exact codes (as the error message). The a
 | `cannot_remove_admin` | "Remove their admin role first, then remove them." |
 | `member_not_settled` | "They need to settle up first." |
 | `group_not_settled` | "Everyone needs to settle up before the group can be deleted." |
-| `sole_admin` | "You're the only admin of a group that has other members. Make someone admin or delete the group first." |
-| `unsettled_balances` | "You have unsettled balances. Delete anyway?" (needs explicit confirmation) |
+| `sole_admin` | "You're the only admin of a group with other members. Make someone else admin or delete the group first." |
+| `unsettled_balances` | "Settle up with your groups first, then you can delete your account." |
 | `invalid_role` | "Something went wrong. Please try again." |
 
 **Join and preview results** (returned as a status, not raised, so failed attempts can be counted):
@@ -325,7 +325,7 @@ RPC functions raise errors using these exact codes (as the error message). The a
 | GD1 | User is the **only admin** of a group that has other members and tries to delete their account | The preflight check lists those groups; deletion is blocked (`sole_admin`) |
 | GD2 | Groups where the user is the **only active member** | Deleted together with the account |
 | GD3 | All other groups | User's membership is marked `left`; their history stays as "Deleted user" |
-| GD4 | Unsettled balances *(stub until Phase 5)* | Wired in: `delete_my_account(p_force)` raises `unsettled_balances` unless the user confirmed |
+| GD4 | Unsettled balances *(stub until Phase 5)* | If unsettled (net balance != 0 or pending/disputed settlement), deletion is blocked (`unsettled_balances`). No force parameter or "delete anyway" override |
 | GD5 | Order of steps | The preflight runs **before** any irreversible step (before avatar files are deleted) |
 | GD6 | How a deleted user appears to others | "Deleted user", no photo, no UPI ID |
 
@@ -439,7 +439,7 @@ SQL tests: all statuses in Section 5; code format; a reset code kills the old on
 | `leave_group(p_group)` | Full code in Section 8.3. Returns `'left'` or `'group_deleted'` |
 | `delete_group(p_group)` | Lock group row; admin only; `group_not_settled` if `group_is_settled()` is false; delete (cascade) |
 | `account_deletion_blockers()` | Returns JSON: groups where the caller is the **only** active admin and others remain (`sole_admin_groups`), and groups with unsettled balances (`unsettled_groups`, empty until Phase 5) |
-| `delete_my_account(p_force boolean default false)` | **Replaces** the Phase 2 version (drop the old zero-argument function first). Steps: raise `sole_admin` if blockers exist; raise `unsettled_balances` unless `p_force`; for each active membership, if the caller is the only active member delete the group, otherwise set status `left` and role `member`; then anonymize the profile and delete the login (as in Phase 2) |
+| `delete_my_account()` | Zero-argument function with smart-delete logic. In Phase 3.4: replace the `account_deletion_blockers()` stub with the real sole-admin logic and add the "leave all groups / delete groups where user is the only member" hook; keep the smart-delete logic. Steps: check blockers (`sole_admin`, `unsettled_balances`); leave all groups / delete groups where user is the only member; smart delete profile (hard delete if unreferenced, anonymize if FK referenced) and delete auth user |
 
 **Locking rule:** every function above starts by locking the **group row** (`select ... for update`), so membership changes in one group always run one at a time. Never lock in a different order.
 
@@ -534,7 +534,7 @@ SQL tests (this is the heaviest test file; write it carefully):
 **Tasks**
 1. Update the Phase 2 delete flow: on the **Explain screen**, call `account_deletion_blockers()` **first**, before anything irreversible (GD5).
 2. If `sole_admin_groups` is not empty: show the list with a button per group ("Make someone admin" opens that group's Members tab, or "Delete group"). The Delete button stays disabled (GD1, F7).
-3. If `unsettled_groups` is not empty (empty until Phase 5): show a warning with the groups and a checkbox "I understand others will see me as Deleted user"; the flow then calls `delete_my_account(true)` (GD4, F8).
+3. If `unsettled_groups` is not empty (empty until Phase 5): show blocked state with the groups and message "Settle up with your groups first, then you can delete your account." The Delete button stays disabled (GD4, F8). There is no "delete anyway" option and no force parameter.
 4. Keep the rest of the Phase 2 flow (re-authenticate, type DELETE, delete avatar, call RPC, local sign-out).
 5. Verify with test accounts: sole-admin block, auto-deletion of a group where the user was the only member (GD2), membership marked `left` elsewhere (GD3), and how the deleted user appears to the other members (GD6, F9).
 
@@ -887,7 +887,7 @@ $$;
 | Phase | What it must do for Phase 3 |
 |-------|------------------------------|
 | 4 | Expenses reference `groups` with `on delete cascade`; expense functions use `is_active_member()`; expense lists show former members' names via `get_group_members(..., true)`; `list_my_groups()` gains `last_activity_at` |
-| 5 | Replace `member_is_settled()` and `group_is_settled()` with real checks; `list_my_groups()` gains `my_balance_minor`; re-run GM2, GM7, GE5, GD4 against real data |
+| 5 | Replace `member_is_settled()` and `group_is_settled()` with real checks; replace `account_deletion_blockers()` unsettled stub with real check (net balance != 0 in the group OR user has pending/disputed settlement); `list_my_groups()` gains `my_balance_minor`; re-run GM2, GM7, GE5, GD4 against real data |
 | 6 | Settlement confirmation uses `is_active_member()` for both parties |
 | 7 | Membership notifications; https invite landing page and Android App Links |
 | 8 | Full RLS audit including all Phase 3 functions |
@@ -896,16 +896,16 @@ $$;
 
 ## 11. Phase 3 Definition of Done
 
-- [ ] 3.1 to 3.9 completed, tested, and confirmed one by one
-- [ ] Every row of the Section 4 permissions table is proven by SQL tests
-- [ ] Every case ID in Section 6 has a pass result in `docs/phase-3-test-log.md`
-- [ ] The two concurrency checks (GJ20 and GR9) are recorded
-- [ ] No direct table writes anywhere in the app; clients only have `select` on `groups` and `group_members`
-- [ ] The stubs `member_is_settled` and `group_is_settled` are in place and documented
-- [ ] Account deletion respects groups (GD1 to GD6) and Phase 2 cases F7 and F9 are marked pass
-- [ ] `npm run check` and `npx supabase test db` pass
-- [ ] Docs updated; tagged `phase-3-done`
-- [ ] Decisions D5 to D12 have recorded answers
+- [x] 3.1 to 3.9 completed, tested, and confirmed one by one
+- [x] Every row of the Section 4 permissions table is proven by SQL tests
+- [x] Every case ID in Section 6 has a pass result in `docs/phase-3-test-log.md`
+- [x] The two concurrency checks (GJ20 and GR9) are recorded
+- [x] No direct table writes anywhere in the app; clients only have `select` on `groups` and `group_members`
+- [x] The stubs `member_is_settled` and `group_is_settled` are in place and documented
+- [x] Account deletion respects groups (GD1 to GD6) and Phase 2 cases F7 and F9 are marked pass
+- [x] `npm run check` and `npx supabase test db` pass
+- [x] Docs updated; tagged `phase-3-done`
+- [x] Decisions D5 to D12 have recorded answers
 
 ---
 

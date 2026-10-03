@@ -1,56 +1,33 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { AppHeader, EmptyState, Screen } from '@/components';
-import { useAppTheme } from '@/lib/theme';
+import React, { useCallback } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { ActivityList, AppHeader, OfflineBanner, Screen } from '@/components';
+import { useActivity } from '@/hooks';
 
 export default function ActivityTabScreen() {
-  const theme = useAppTheme();
+  const { refetch } = useActivity();
+
+  // Refetch when tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   return (
     <Screen padding={false}>
+      <OfflineBanner />
       <AppHeader title="Activity" subtitle="Recent transactions & updates" />
-
-      <View style={styles.content}>
-        <View
-          style={[
-            styles.phaseBadge,
-            {
-              backgroundColor: theme.colors.surfaceVariant,
-              borderRadius: theme.radius.pill,
-              paddingHorizontal: theme.spacing.md,
-              paddingVertical: theme.spacing.xs,
-              marginBottom: theme.spacing.lg,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              theme.typography.caption,
-              { color: theme.colors.text, fontWeight: '700' },
-            ]}
-          >
-            🚧 Activity feed coming in Phase 4
-          </Text>
-        </View>
-
-        <EmptyState
-          icon="pulse-outline"
-          title="No activity yet"
-          message="When expenses or settlements are added in your groups, they will show up here."
-        />
+      <View style={styles.container}>
+        <ActivityList />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  phaseBadge: {
-    alignSelf: 'center',
   },
 });
+

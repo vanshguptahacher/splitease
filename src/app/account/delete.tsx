@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,7 +23,7 @@ import {
   useAuth,
   useProfile,
 } from '@/hooks';
-import { deleteMyAccount } from '@/lib/api/groups';
+import { deleteMyAccount, getAccountDeletionBlockers } from '@/lib/api/groups';
 import { supabase } from '@/lib/supabase/client';
 import { toFriendlyMessage } from '@/lib/errors';
 import { signInWithGoogle } from '@/lib/auth/google';
@@ -50,7 +49,6 @@ export default function DeleteAccountScreen() {
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [unsettledConfirmed, setUnsettledConfirmed] = useState(false);
 
   const isGoogleUser = user?.app_metadata?.provider === 'google';
 
@@ -104,24 +102,53 @@ export default function DeleteAccountScreen() {
     }
   };
 
-  // Step 4: Execute Account Deletion (Cases F4, F5, GD2, GD3, GD4, GD6)
+  // Step 4: Execute Account Deletion (Cases F4, F5, GD1–GD6)
   const executeAccountDeletion = async () => {
     setStep('deleting');
     setErrorMessage(null);
 
     try {
-      // 1. Delete avatar files from storage if present (best effort, ignore not found)
-      if (profile?.avatar_path) {
-        await deleteAvatarFile(profile.avatar_path).catch(() => {});
+      // 1. Re-check blockers right before deleting avatar files (preflight check before irreversible action)
+      const currentBlockers = await getAccountDeletionBlockers();
+      const currentSole = currentBlockers?.sole_admin_groups ?? [];
+      const currentUnsettled = currentBlockers?.unsettled_groups ?? [];
+      if (currentSole.length > 0) {
+        throw new Error('sole_admin');
+      }
+      if (currentUnsettled.length > 0) {
+        throw new Error('unsettled_balances');
       }
 
-      // 2. Execute delete_my_account RPC (with force flag if confirmed unsettled balances)
-      await deleteMyAccount(unsettledConfirmed);
+      // 2. Delete avatar files from storage if present (best effort, ignore not found)
+      let avatarFileDeleted = false;
+      if (profile?.avatar_path) {
+        await deleteAvatarFile(profile.avatar_path).catch(() => {});
+        avatarFileDeleted = true;
+      }
 
-      // 3. Clean sign out and reset local state
+      // 3. Execute delete_my_account RPC
+      try {
+        await deleteMyAccount();
+      } catch (deleteErr) {
+        // If delete_my_account fails AFTER avatar files were removed (e.g. race where a due appeared),
+        // set avatar_path to null with normal profile update so profile does not point to missing file
+        if (avatarFileDeleted && user?.id) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ avatar_path: null })
+              .eq('id', user.id);
+          } catch {
+            // Best effort profile update
+          }
+        }
+        throw deleteErr;
+      }
+
+      // 4. Clean sign out and reset local state
       await signOutAndReset();
 
-      // 4. Navigate to Goodbye screen
+      // 5. Navigate to Goodbye screen
       router.replace('/(auth)/goodbye' as any);
     } catch (err) {
       setErrorMessage(toFriendlyMessage(err));
@@ -201,7 +228,7 @@ export default function DeleteAccountScreen() {
                   </Text>
                 </View>
                 <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginBottom: 12 }]}>
-                  You are the only admin of the following groups with active members. A group needs at least one admin. Make someone else admin or delete the group first:
+                  You&apos;re the only admin of a group with other members. Make someone else admin or delete the group first.
                 </Text>
 
                 {soleAdminGroups.map((g: any) => (
@@ -266,41 +293,54 @@ export default function DeleteAccountScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                   <Ionicons name="wallet-outline" size={24} color={theme.colors.error} style={{ marginRight: 8 }} />
                   <Text style={[theme.typography.sectionTitle, { color: theme.colors.onErrorContainer, flex: 1 }]}>
-                    Unsettled Balances
+                    Cannot Delete: Unsettled Balances
                   </Text>
                 </View>
-                <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginBottom: 8 }]}>
-                  You have active balances in the following groups:
+                <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginBottom: 12 }]}>
+                  Settle up with your groups first, then you can delete your account.
+                </Text>
+                <Text style={[theme.typography.caption, { color: theme.colors.onErrorContainer, marginBottom: 8, fontWeight: '700' }]}>
+                  Unsettled groups:
                 </Text>
 
                 {unsettledGroups.map((g: any) => (
-                  <Text
+                  <View
                     key={g.id}
                     style={[
-                      theme.typography.body,
-                      { color: theme.colors.onErrorContainer, fontWeight: '600', marginLeft: 8, marginBottom: 4 },
+                      styles.groupBlockerRow,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.outline,
+                        borderRadius: theme.radius.sm,
+                        padding: theme.spacing.md,
+                        marginBottom: 8,
+                      },
                     ]}
                   >
-                    • {g.name}
-                  </Text>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          { color: theme.colors.text, fontWeight: '700' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {g.name}
+                      </Text>
+                    </View>
+                    <AppButton
+                      title="View group"
+                      variant="secondary"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/group/[id]',
+                          params: { id: g.id },
+                        } as any)
+                      }
+                      testID={`view-group-${g.id}`}
+                    />
+                  </View>
                 ))}
-
-                <Pressable
-                  onPress={() => setUnsettledConfirmed(!unsettledConfirmed)}
-                  style={styles.checkboxRow}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: unsettledConfirmed }}
-                  testID="unsettled-checkbox"
-                >
-                  <Ionicons
-                    name={unsettledConfirmed ? 'checkbox' : 'square-outline'}
-                    size={22}
-                    color={theme.colors.error}
-                  />
-                  <Text style={[theme.typography.body, { color: theme.colors.onErrorContainer, marginLeft: 8, flex: 1 }]}>
-                    I understand others will see me as Deleted user and my share remains recorded.
-                  </Text>
-                </Pressable>
               </View>
             )}
 
@@ -358,7 +398,7 @@ export default function DeleteAccountScreen() {
                 disabled={
                   isBlockersLoading ||
                   hasSoleAdminBlocker ||
-                  (hasUnsettledBlocker && !unsettledConfirmed)
+                  hasUnsettledBlocker
                 }
                 fullWidth
                 testID="continue-to-verify-button"

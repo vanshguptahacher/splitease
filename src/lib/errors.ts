@@ -11,7 +11,10 @@ export interface AppError {
   error_description?: string;
 }
 
-export function toFriendlyMessage(error: unknown): string {
+export function toFriendlyMessage(
+  error: unknown,
+  memberNameResolver?: (userId: string) => string | undefined
+): string {
   if (!error) {
     return 'An unexpected error occurred. Please try again.';
   }
@@ -196,10 +199,10 @@ export function toFriendlyMessage(error: unknown): string {
     return 'Everyone needs to settle up before the group can be deleted.';
   }
   if (matchesCode('sole_admin')) {
-    return "You're the only admin of a group that has other members. Make someone admin or delete the group first.";
+    return "You're the only admin of a group with other members. Make someone else admin or delete the group first.";
   }
   if (matchesCode('unsettled_balances')) {
-    return 'You have unsettled balances. Delete anyway?';
+    return 'Settle up with your groups first, then you can delete your account.';
   }
   if (matchesCode('invalid_role')) {
     return 'Something went wrong. Please try again.';
@@ -228,6 +231,63 @@ export function toFriendlyMessage(error: unknown): string {
     return 'Too many wrong codes. Try again in about 15 minutes.';
   }
 
+  // 10. Phase 4: Expense Error Codes (Section 5)
+  if (matchesCode('expense_not_found')) {
+    return 'This expense no longer exists.';
+  }
+  if (matchesCode('not_allowed')) {
+    return 'Only the person who added this expense or a group admin can change it.';
+  }
+  if (matchesCode('expense_locked')) {
+    return "This expense includes someone who left the group, so it's locked. Add a new expense to correct it.";
+  }
+  if (matchesCode('expense_changed')) {
+    return "Someone just changed this expense. We've loaded the latest version.";
+  }
+  if (matchesCode('invalid_amount')) {
+    return 'Enter an amount between ₹0.01 and ₹1,00,00,000.';
+  }
+  if (matchesCode('invalid_date')) {
+    return 'Choose a valid date.';
+  }
+  if (matchesCode('invalid_description')) {
+    return 'Keep the description under 100 characters.';
+  }
+  if (matchesCode('invalid_category')) {
+    return 'Pick a category from the list.';
+  }
+  if (matchesCode('invalid_split_type')) {
+    return 'Something went wrong. Please try again.';
+  }
+  if (matchesCode('no_participants')) {
+    return 'Pick at least one person.';
+  }
+  if (matchesCode('too_many_participants')) {
+    return 'A split can include at most 50 people.';
+  }
+  if (matchesCode('duplicate_participant')) {
+    return 'Something went wrong. Please try again.';
+  }
+  if (matchesCode('invalid_split_value')) {
+    return 'Check the amounts you entered for each person.';
+  }
+  if (matchesCode('splits_dont_add_up')) {
+    return "The split doesn't add up to the total.";
+  }
+  if (matchesCode('payer_not_member')) {
+    return 'The person who paid is no longer in this group.';
+  }
+  if (matchesCode('participant_not_member')) {
+    const detailId = getParticipantNotMemberId(error);
+    if (detailId && memberNameResolver) {
+      const name = memberNameResolver(detailId);
+      if (name) {
+        return `${name} is no longer in this group.`;
+      }
+    }
+    return 'Someone in this split is no longer in this group.';
+  }
+
   if (errCode === 'P0001' && rawMsg) {
     return rawMsg;
   }
@@ -237,4 +297,22 @@ export function toFriendlyMessage(error: unknown): string {
   }
 
   return 'Something went wrong. Please try again.';
+}
+
+/**
+ * Extracts participant user ID from a participant_not_member Postgres error details or message.
+ */
+export function getParticipantNotMemberId(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const errObj = error as { details?: unknown; message?: unknown };
+  if (typeof errObj.details === 'string' && errObj.details) {
+    const match = errObj.details.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (match) return match[0];
+    return errObj.details;
+  }
+  if (typeof errObj.message === 'string') {
+    const match = errObj.message.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (match) return match[0];
+  }
+  return null;
 }

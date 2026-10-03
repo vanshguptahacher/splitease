@@ -28,9 +28,16 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
 }));
 
+const mockProfileUpdate = jest.fn().mockReturnValue({
+  eq: jest.fn().mockResolvedValue({ error: null }),
+});
+
 jest.mock('@/lib/supabase/client', () => ({
   supabase: {
     rpc: jest.fn(),
+    from: jest.fn(() => ({
+      update: mockProfileUpdate,
+    })),
     auth: {
       getUser: jest.fn().mockResolvedValue({
         data: { user: { id: 'test-user-id', email: 'test@example.com' } },
@@ -182,7 +189,7 @@ describe('DeleteAccountScreen integration (Sub-phase 3.8, GD1–GD6, F1–F9)', 
     });
   });
 
-  it('warns about unsettled balances and requires checkbox confirmation before enabling continue (GD4, F8)', async () => {
+  it('blocks continuation and keeps button disabled when user has unsettled balances (GD4, F8)', async () => {
     (supabase.rpc as jest.Mock).mockImplementation((fn: string) => {
       if (fn === 'account_deletion_blockers') {
         return Promise.resolve({
@@ -202,85 +209,75 @@ describe('DeleteAccountScreen integration (Sub-phase 3.8, GD1–GD6, F1–F9)', 
       expect(getByTestId('unsettled-blocker-card')).toBeTruthy();
     });
 
-    expect(getByText('• Flat 402 Expenses')).toBeTruthy();
+    expect(getByText('Flat 402 Expenses')).toBeTruthy();
+    expect(getByText('Cannot Delete: Unsettled Balances')).toBeTruthy();
+    expect(getByText('Settle up with your groups first, then you can delete your account.')).toBeTruthy();
 
     const continueBtn = getByTestId('continue-to-verify-button');
     expect(continueBtn.props.accessibilityState.disabled).toBe(true);
-
-    const checkbox = getByTestId('unsettled-checkbox');
-    fireEvent.press(checkbox);
-
-    await waitFor(() => {
-      expect(continueBtn.props.accessibilityState.disabled).toBe(false);
-    });
   });
 
-  it('completes full deletion flow with force=true when unsettled balances are confirmed (GD4, GD5, F1–F5)', async () => {
-    (supabase.rpc as jest.Mock).mockImplementation((fn: string, params?: any) => {
+  it('aborts deletion before avatar removal if blockers appear before deletion (race condition)', async () => {
+    let callCount = 0;
+    (supabase.rpc as jest.Mock).mockImplementation((fn: string) => {
       if (fn === 'account_deletion_blockers') {
+        callCount++;
+        // First call on Explain screen: empty
+        if (callCount === 1) {
+          return Promise.resolve({
+            data: { sole_admin_groups: [], unsettled_groups: [] },
+            error: null,
+          });
+        }
+        // Second call right before avatar removal: newly unsettled
         return Promise.resolve({
           data: {
             sole_admin_groups: [],
-            unsettled_groups: [{ id: 'group-unsettled-1', name: 'Flat 402 Expenses' }],
+            unsettled_groups: [{ id: 'race-group', name: 'Race Group' }],
           },
           error: null,
         });
       }
-      if (fn === 'delete_my_account') {
-        return Promise.resolve({ data: null, error: null });
-      }
       return Promise.resolve({ data: null, error: null });
     });
 
-    const { getByTestId } = await renderWithProviders(<DeleteAccountScreen />);
-
-    await waitFor(() => {
-      expect(getByTestId('unsettled-blocker-card')).toBeTruthy();
-    });
-
-    // Check confirmation
-    fireEvent.press(getByTestId('unsettled-checkbox'));
+    const { getByTestId, getByText } = await renderWithProviders(<DeleteAccountScreen />);
 
     await waitFor(() => {
       expect(getByTestId('continue-to-verify-button').props.accessibilityState.disabled).toBe(false);
     });
 
-    // Step 1 -> Step 2
     fireEvent.press(getByTestId('continue-to-verify-button'));
 
     await waitFor(() => {
       expect(getByTestId('verify-google-button')).toBeTruthy();
     });
 
-    // Step 2 Re-auth -> Step 3
     fireEvent.press(getByTestId('verify-google-button'));
 
     await waitFor(() => {
       expect(getByTestId('delete-account-input')).toBeTruthy();
     });
 
-    const deleteBtn = getByTestId('confirm-delete-account-button');
-    expect(deleteBtn.props.accessibilityState.disabled).toBe(true);
-
-    // Type DELETE
     fireEvent.changeText(getByTestId('delete-account-input'), 'DELETE');
 
     await waitFor(() => {
       expect(getByTestId('confirm-delete-account-button').props.accessibilityState.disabled).toBe(false);
     });
 
-    // Execute deletion
     fireEvent.press(getByTestId('confirm-delete-account-button'));
 
     await waitFor(() => {
-      expect(avatarApi.deleteAvatarFile).toHaveBeenCalledWith('test-user-id/avatar.jpg');
-      expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account', { p_force: true });
-      expect(mockSignOutAndReset).toHaveBeenCalled();
-      expect(mockRouter.replace).toHaveBeenCalledWith('/(auth)/goodbye');
+      expect(getByText('Deletion Could Not Complete')).toBeTruthy();
+      expect(getByText('Settle up with your groups first, then you can delete your account.')).toBeTruthy();
     });
+
+    // Avatar files were NOT removed because blockers were caught beforehand
+    expect(avatarApi.deleteAvatarFile).not.toHaveBeenCalled();
+    expect(supabase.rpc).not.toHaveBeenCalledWith('delete_my_account');
   });
 
-  it('completes clean deletion with force=false when no unsettled balances exist (GD2, GD3, GD6, F4)', async () => {
+  it('completes clean deletion without parameters when no blockers exist (GD2, GD3, GD6, F4)', async () => {
     (supabase.rpc as jest.Mock).mockImplementation((fn: string) => {
       if (fn === 'account_deletion_blockers') {
         return Promise.resolve({
@@ -325,13 +322,13 @@ describe('DeleteAccountScreen integration (Sub-phase 3.8, GD1–GD6, F1–F9)', 
 
     await waitFor(() => {
       expect(avatarApi.deleteAvatarFile).toHaveBeenCalledWith('test-user-id/avatar.jpg');
-      expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account', { p_force: false });
+      expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account');
       expect(mockSignOutAndReset).toHaveBeenCalled();
       expect(mockRouter.replace).toHaveBeenCalledWith('/(auth)/goodbye');
     });
   });
 
-  it('shows error screen and allows retry if deleteMyAccount fails (F5)', async () => {
+  it('shows error screen, resets avatar_path to null, and allows retry if deleteMyAccount fails after avatar removal (F5)', async () => {
     (supabase.rpc as jest.Mock).mockImplementation((fn: string) => {
       if (fn === 'account_deletion_blockers') {
         return Promise.resolve({
@@ -375,6 +372,9 @@ describe('DeleteAccountScreen integration (Sub-phase 3.8, GD1–GD6, F1–F9)', 
     fireEvent.press(getByTestId('confirm-delete-account-button'));
 
     await waitFor(() => {
+      expect(avatarApi.deleteAvatarFile).toHaveBeenCalledWith('test-user-id/avatar.jpg');
+      expect(supabase.from).toHaveBeenCalledWith('profiles');
+      expect(mockProfileUpdate).toHaveBeenCalledWith({ avatar_path: null });
       expect(getByText('Deletion Could Not Complete')).toBeTruthy();
       expect(getByText('Retry Deletion')).toBeTruthy();
     });
