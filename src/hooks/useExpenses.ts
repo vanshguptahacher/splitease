@@ -73,9 +73,12 @@ export function useAddExpense(defaultGroupId?: string) {
       const gId = defaultGroupId || variables.groupId;
       if (gId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.groups.expenses(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.balances(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.settlements(gId) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
     },
   });
 }
@@ -93,10 +96,13 @@ export function useEditExpense(defaultGroupId?: string) {
       const gId = defaultGroupId || variables.groupId;
       if (gId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.groups.expenses(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.balances(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.settlements(gId) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.detail(variables.expenseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
     },
   });
 }
@@ -118,10 +124,13 @@ export function useDeleteExpense(defaultGroupId?: string) {
       const gId = defaultGroupId || (typeof arg === 'object' ? arg.groupId : undefined);
       if (gId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.groups.expenses(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.balances(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.settlements(gId) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.detail(expenseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
     },
   });
 }
@@ -143,10 +152,13 @@ export function useRestoreExpense(defaultGroupId?: string) {
       const gId = defaultGroupId || (typeof arg === 'object' ? arg.groupId : undefined);
       if (gId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.groups.expenses(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.balances(gId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.groups.settlements(gId) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.detail(expenseId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
     },
   });
 }

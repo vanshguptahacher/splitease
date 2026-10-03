@@ -19,3 +19,4 @@ export * from './expenses/ExpenseRow';
 export * from './expenses/ExpenseList';
 export * from './activity/ActivityRow';
 export * from './activity/ActivityList';
+export * from './balances/GroupBalancesTab';

@@ -21,6 +21,15 @@ export function formatMoney(amountMinor: number): string {
 }
 
 /**
+ * Formats paise into compact INR string:
+ * Drops trailing '.00' so 120000 -> "₹1,200", while keeping decimals if present (e.g. "₹1,200.50").
+ */
+export function formatMoneyCompact(amountMinor: number): string {
+  const formatted = formatMoney(amountMinor);
+  return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+}
+
+/**
  * Formats an amount (either integer paise or a raw input text string)
  * into a screen-reader friendly description: e.g. "1,200 rupees and 50 paise".
  * Handles singular ("1 rupee", "1 paisa") and zero states ("0 rupees").

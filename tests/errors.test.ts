@@ -123,7 +123,9 @@ describe('toFriendlyMessage', () => {
     expect(toFriendlyMessage(new Error('cannot_remove_admin'))).toBe(
       'Remove their admin role first, then remove them.'
     );
-    expect(toFriendlyMessage(new Error('member_not_settled'))).toBe('They need to settle up first.');
+    expect(toFriendlyMessage(new Error('member_not_settled'))).toBe(
+      'Settle up first, then you can do this.'
+    );
     expect(toFriendlyMessage(new Error('group_not_settled'))).toBe(
       'Everyone needs to settle up before the group can be deleted.'
     );
@@ -154,6 +156,49 @@ describe('toFriendlyMessage', () => {
     expect(toFriendlyMessage('too_many_attempts')).toBe(
       'Too many wrong codes. Try again in about 15 minutes.'
     );
+  });
+
+  it('handles Phase 5 settlement and balance error codes (Section 5)', () => {
+    expect(toFriendlyMessage('settlement_not_found')).toBe('This payment no longer exists.');
+    expect(toFriendlyMessage('settlement_not_allowed')).toBe("You can't do that with this payment.");
+    expect(toFriendlyMessage('invalid_settlement')).toBe('Choose two different people.');
+    expect(toFriendlyMessage('payer_not_member')).toBe('The person who paid is no longer in this group.');
+    expect(toFriendlyMessage('receiver_not_member')).toBe(
+      'The person receiving the payment is no longer in this group.'
+    );
+    expect(toFriendlyMessage('invalid_method')).toBe('Choose how the payment was made.');
+    expect(toFriendlyMessage('invalid_note')).toBe('Keep the note under 100 characters.');
+    expect(toFriendlyMessage('duplicate_pending')).toBe(
+      "There's already a pending payment of that amount. Wait for it to be confirmed, or cancel it first."
+    );
+    expect(toFriendlyMessage('too_many_pending')).toBe(
+      'You have too many pending payments in this group. Wait for some to be confirmed.'
+    );
+    expect(toFriendlyMessage('invalid_transition')).toBe(
+      "This payment was just updated. We've refreshed it."
+    );
+    expect(toFriendlyMessage('undo_window_passed')).toBe(
+      "It's too late to undo this. Record a new payment to correct it."
+    );
+    expect(toFriendlyMessage('settlement_locked')).toBe(
+      "Someone in this payment has left the group, so it can't be changed."
+    );
+    expect(toFriendlyMessage('member_not_settled')).toBe('Settle up first, then you can do this.');
+    expect(toFriendlyMessage('group_not_settled')).toBe(
+      'Everyone needs to settle up before the group can be deleted.'
+    );
+    expect(toFriendlyMessage('unsettled_balances')).toBe(
+      'Settle up with your groups first, then you can delete your account.'
+    );
+
+    // With memberNameResolver
+    const resolver = (id: string) => (id === '11111111-1111-1111-1111-111111111111' ? 'Priya' : undefined);
+    expect(
+      toFriendlyMessage(
+        { message: 'receiver_not_member', details: '11111111-1111-1111-1111-111111111111' },
+        resolver
+      )
+    ).toBe('Priya is no longer in this group.');
   });
 
   it('provides a clean fallback for null or empty errors', () => {

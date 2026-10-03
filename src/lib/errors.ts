@@ -193,7 +193,7 @@ export function toFriendlyMessage(
     return 'Remove their admin role first, then remove them.';
   }
   if (matchesCode('member_not_settled')) {
-    return 'They need to settle up first.';
+    return 'Settle up first, then you can do this.';
   }
   if (matchesCode('group_not_settled')) {
     return 'Everyone needs to settle up before the group can be deleted.';
@@ -275,6 +275,13 @@ export function toFriendlyMessage(
     return "The split doesn't add up to the total.";
   }
   if (matchesCode('payer_not_member')) {
+    const detailId = getParticipantNotMemberId(error);
+    if (detailId && memberNameResolver) {
+      const name = memberNameResolver(detailId);
+      if (name) {
+        return `${name} is no longer in this group.`;
+      }
+    }
     return 'The person who paid is no longer in this group.';
   }
   if (matchesCode('participant_not_member')) {
@@ -286,6 +293,48 @@ export function toFriendlyMessage(
       }
     }
     return 'Someone in this split is no longer in this group.';
+  }
+
+  // 11. Phase 5: Settlement & Balance Error Codes (Section 5)
+  if (matchesCode('settlement_not_found')) {
+    return 'This payment no longer exists.';
+  }
+  if (matchesCode('settlement_not_allowed')) {
+    return "You can't do that with this payment.";
+  }
+  if (matchesCode('invalid_settlement')) {
+    return 'Choose two different people.';
+  }
+  if (matchesCode('receiver_not_member')) {
+    const detailId = getParticipantNotMemberId(error);
+    if (detailId && memberNameResolver) {
+      const name = memberNameResolver(detailId);
+      if (name) {
+        return `${name} is no longer in this group.`;
+      }
+    }
+    return 'The person receiving the payment is no longer in this group.';
+  }
+  if (matchesCode('invalid_method')) {
+    return 'Choose how the payment was made.';
+  }
+  if (matchesCode('invalid_note')) {
+    return 'Keep the note under 100 characters.';
+  }
+  if (matchesCode('duplicate_pending')) {
+    return "There's already a pending payment of that amount. Wait for it to be confirmed, or cancel it first.";
+  }
+  if (matchesCode('too_many_pending')) {
+    return 'You have too many pending payments in this group. Wait for some to be confirmed.';
+  }
+  if (matchesCode('invalid_transition')) {
+    return "This payment was just updated. We've refreshed it.";
+  }
+  if (matchesCode('undo_window_passed')) {
+    return "It's too late to undo this. Record a new payment to correct it.";
+  }
+  if (matchesCode('settlement_locked')) {
+    return "Someone in this payment has left the group, so it can't be changed.";
   }
 
   if (errCode === 'P0001' && rawMsg) {

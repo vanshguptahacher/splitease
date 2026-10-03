@@ -19,6 +19,7 @@ import {
   Avatar,
   ErrorState,
   ExpenseList,
+  GroupBalancesTab,
   LoadingSkeleton,
   Screen,
   useSnackbar,
@@ -535,30 +536,22 @@ export default function GroupDetailScreen() {
             )}
 
             {activeTab === 'balances' && (
-              <View style={[styles.placeholderCard, { padding: theme.spacing.xl }]}>
-                <Ionicons
-                  name="wallet-outline"
-                  size={52}
-                  color={theme.colors.muted}
-                  style={{ marginBottom: 12 }}
-                />
-                <Text
-                  style={[
-                    theme.typography.sectionTitle,
-                    { color: theme.colors.text, marginBottom: 8, textAlign: 'center' },
-                  ]}
-                >
-                  Balances Coming in Phase 5
-                </Text>
-                <Text
-                  style={[
-                    theme.typography.body,
-                    { color: theme.colors.muted, textAlign: 'center', maxWidth: 300 },
-                  ]}
-                >
-                  View simplified peer-to-peer debts, who owes whom, and settle in 1-click via UPI.
-                </Text>
-              </View>
+              <GroupBalancesTab
+                groupId={group?.id || id}
+                groupName={group?.name}
+                members={members}
+                currentUserId={user?.id}
+                onSettleUpPress={(payment) => {
+                  showSnackbar({
+                    message: `Settle up ₹${Math.floor(payment.amount_minor / 100)} with ${members.find((m) => m.user_id === payment.to_user)?.name || 'member'} (Sub-phase 5.6)`,
+                  });
+                }}
+                onMarkReceivedPress={(payment) => {
+                  showSnackbar({
+                    message: `Mark ₹${Math.floor(payment.amount_minor / 100)} as received (Sub-phase 5.6)`,
+                  });
+                }}
+              />
             )}
 
             {activeTab === 'members' && (

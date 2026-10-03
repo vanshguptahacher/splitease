@@ -180,10 +180,10 @@ describe('Group Detail UI (Sub-phase 3.7, Cases GI, GR, GM, GE, GN)', () => {
         expect(getByText('No expenses yet. Add the first one.')).toBeTruthy();
       });
 
-      // Switch to Balances
+      // Switch to Balances (Phase 5 real balances tab)
       fireEvent.press(getByTestId('tab-balances'));
       await waitFor(() => {
-        expect(getByText('Balances Coming in Phase 5')).toBeTruthy();
+        expect(getByTestId('balances-top-card')).toBeTruthy();
       });
 
       // Switch back to Members

@@ -22,6 +22,9 @@ export const queryKeys = {
     settlements: (groupId: string) => ['group', groupId, 'settlements'] as const,
   },
 
+  // Balance summary across groups (home overview)
+  balanceSummary: ['balanceSummary'] as const,
+
   // Expense keys
   expenses: {
     detail: (expenseId: string) => ['expenses', expenseId] as const,
